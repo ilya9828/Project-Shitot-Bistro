@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="369.0" prefWidth="834.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ShowAllOrdersController">
+   <children>
+      <Button id="btnExit" fx:id="btnExit" layoutX="647.0" layoutY="302.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
+      <Button id="btnBack" fx:id="btnBack" layoutX="148.0" layoutY="302.0" mnemonicParsing="false" onAction="#Back" text="Back" />
+      <TableView id="ordersTable" fx:id="ordersTable" layoutX="21.0" layoutY="45.0" prefHeight="211.0" prefWidth="800.0">
+        <columns>
+          <TableColumn fx:id="order_number" prefWidth="104.00000381469727" text="order_number" />
+          <TableColumn fx:id="order_date" prefWidth="120.0" text="order_date" />
+            <TableColumn fx:id="number_of_guests" prefWidth="191.99998474121094" text="number_of_guests" />
+            <TableColumn fx:id="confirmation_code" minWidth="0.0" prefWidth="188.79998779296875" text="confirmation_code" />
+            <TableColumn fx:id="subscriber_id" minWidth="0.0" prefWidth="195.199951171875" text="subscriber_id" />
+            <TableColumn fx:id="date_of_placing_order" prefWidth="150" text="date_of_placing_order"  />
+        </columns>
+      </TableView>
+   </children>
+</AnchorPane>

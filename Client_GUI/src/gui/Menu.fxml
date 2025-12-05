@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane prefHeight="171.0" prefWidth="319.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.MenuController">
+   <children>
+      <Button id="btnExit" fx:id="btnExit" layoutX="31.0" layoutY="118.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
+      <Label id="lblinstructions" fx:id="lblinstructions" layoutX="60.0" layoutY="35.0" text="Select the action that you want to do:" />
+      <Button id="btnSelect" fx:id="btnSelect" layoutX="255.0" layoutY="118.0" mnemonicParsing="false" onAction="#Select" text="Select" />
+      <ComboBox id="Userselect" fx:id="Userselect" layoutX="49.0" layoutY="60.0" prefHeight="26.0" prefWidth="229.0" />
+      <Label id="lblConnected" fx:id="lblConnected" layoutX="84.0" layoutY="14.0" text="Connected to the Server" textAlignment="CENTER" textFill="#109c48" underline="true">
+         <font>
+            <Font name="System Bold" size="12.0" />
+         </font>
+      </Label>
+      <Label id="lblmsg" fx:id="lblmsg" alignment="CENTER" layoutX="55.0" layoutY="93.0" prefHeight="18.0" prefWidth="221.0" />
+   </children>
+</AnchorPane>

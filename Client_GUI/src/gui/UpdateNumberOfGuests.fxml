@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane prefHeight="477.0" prefWidth="312.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.UpdateNumberOfGuestsController">
+   <children>
+
+    <!-- Instruction -->
+    <Label fx:id="lblinstruction" layoutX="12.0" layoutY="26.0"
+           text="Please enter the Subscriber id that you want to update" />
+
+    <!-- Order Number -->
+    <Label fx:id="lblOrderNumber" layoutX="31.0" layoutY="72.0" text="Order Number:" />
+    <TextField fx:id="txtOrderNumber" layoutX="140.0" layoutY="68.0" />
+
+    <!-- Order Date -->
+    <Label fx:id="lblOrderDate" layoutX="51.0" layoutY="194.0" text="Order Date:" />
+    <TextField fx:id="txtOrderDate" editable="false" layoutX="140.0" layoutY="190.0" />
+
+    <!-- Number of Guests -->
+    <Label fx:id="lblGuests" layoutX="14.0" layoutY="232.0" text="Number of Guests:" />
+    <TextField fx:id="txtGuests" editable="false" layoutX="140.0" layoutY="228.0" />
+
+    <!-- Confirmation Code -->
+    <Label fx:id="lblConfirm" layoutX="26.0" layoutY="270.0" text="Confirmation Code:" />
+    <TextField fx:id="txtConfirm" editable="false" layoutX="140.0" layoutY="265.0" />
+
+    <!-- Subscriber ID -->
+    <Label fx:id="lblSubscriberId" layoutX="33.0" layoutY="306.0" text="Subscriber ID:" />
+    <TextField fx:id="txtSubscriberId" editable="false" layoutX="140.0" layoutY="302.0" />
+
+    <!-- Placing Date -->
+    <Label fx:id="lblPlacingDate" layoutX="12.0" layoutY="340.0" text="Date of Placing Order:" />
+    <TextField fx:id="txtPlacingDate" editable="false" layoutX="140.0" layoutY="336.0" />
+
+    <!-- Load Button -->
+    <Button fx:id="btnLoad" layoutX="60.0" layoutY="105.0"
+            onAction="#Loadbtn" prefWidth="159.0"
+            text="Load Order Details" />
+
+    <!-- Update Button -->
+    <Button fx:id="btnUpdate" layoutX="128.0" layoutY="380.0"
+            onAction="#UpdateBtn" text="Update" />
+
+    <!-- Back Button -->
+    <Button fx:id="btnBack" layoutX="31.0" layoutY="432.0"
+            onAction="#Back" text="Back" />
+
+    <!-- Exit Button -->
+    <Button fx:id="btnExit" layoutX="238.0" layoutY="432.0"
+            onAction="#getExitBtn" text="Exit" />
+
+    <!-- Status Label -->
+    <Label fx:id="lblStatus" alignment="CENTER"
+           layoutX="19.0" layoutY="410.0"
+           prefHeight="54.0" prefWidth="274.0"
+           textAlignment="CENTER" wrapText="true">
+        <font><Font name="System Bold" size="15.0" /></font>
+    </Label>
+
+    <!-- Error Label -->
+    <Label fx:id="lblErr" alignment="CENTER"
+           layoutX="17.0" layoutY="136.0"
+           prefHeight="48.0" prefWidth="274.0"
+           textAlignment="CENTER" textFill="#b13030"
+           wrapText="true">
+        <font><Font name="System Bold" size="12.0" /></font>
+    </Label>
+
+</children>
+
+
+</AnchorPane>
