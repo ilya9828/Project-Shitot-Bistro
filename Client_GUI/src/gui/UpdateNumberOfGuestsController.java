@@ -21,7 +21,7 @@ import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
 /**
- * This class is showing the GUI of updating phone number of subscriber.
+ * This class is showing the GUI of updating number of guests per order.
  */
 public class UpdateNumberOfGuestsController {
 
@@ -87,7 +87,7 @@ public class UpdateNumberOfGuestsController {
 
 	/**
 	 * This method is for the update button is sending the information to the server
-	 * which subscriber to update and what to change.
+	 * which order to update and what to change.
 	 * 
 	 * @param event - the click on the update button.
 	 */
@@ -123,7 +123,7 @@ public class UpdateNumberOfGuestsController {
 
 
 	/**
-	 * This method is for the load subscriber button. getting the string from the
+	 * This method is loading orders. getting the string from the
 	 * server and calling other method "LoadDetails()" to handle it and load into the GUI
 	 * 
 	 * @param event - the click on the load button.
@@ -157,9 +157,9 @@ public class UpdateNumberOfGuestsController {
 		}
 	}
 
-	/** This method is getting a string of subscriber and loading that data to the GUI
+	/** This method is getting a string of an order and loading that data to the GUI
 	 * enabling the only fields that we wants that the user will update.
-	 * @param Subscriber
+	 * @param orderDetails
 	 */
 	public void LoadDetails(String orderDetails) {
 

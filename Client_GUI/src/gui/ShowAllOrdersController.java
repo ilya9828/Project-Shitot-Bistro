@@ -18,7 +18,7 @@ import javafx.scene.control.TableView;
 import javafx.stage.Stage;
 
 /**
- * This class is showing us the GUI with table of all the subscribers
+ * This class is showing us the GUI with table of all the orders
  */
 public class ShowAllOrdersController {
 
@@ -78,20 +78,20 @@ public class ShowAllOrdersController {
      * @throws IOException
      */
     public void Back(ActionEvent event) throws IOException {
-        FXMLLoader studentLoader = new FXMLLoader(getClass().getResource("/gui/Menu.fxml"));
-        Parent studentRoot = studentLoader.load();
-        Stage studentStage = new Stage();
-        Scene studentScene = new Scene(studentRoot);
-        studentScene.getStylesheets().add(getClass().getResource("/gui/Menu.css").toExternalForm());
-        studentStage.setScene(studentScene);
-        studentStage.setTitle("Menu");
-        studentStage.show();
+        FXMLLoader ordersLoader = new FXMLLoader(getClass().getResource("/gui/Menu.fxml"));
+        Parent ordersRoot = ordersLoader.load();
+        Stage ordersStage = new Stage();
+        Scene ordersScene = new Scene(ordersRoot);
+        ordersScene.getStylesheets().add(getClass().getResource("/gui/Menu.css").toExternalForm());
+        ordersStage.setScene(ordersScene);
+        ordersStage.setTitle("Menu");
+        ordersStage.show();
         ((Node) event.getSource()).getScene().getWindow().hide();
     }
 
     
     
-    /**This method is getting list of the subscribers and uploading it to the table view
+    /**This method is getting list of the orders and uploading it to the table view
      * @param orders - list of the orders.
      */
     public void loadOrders(List<String> orders) {
