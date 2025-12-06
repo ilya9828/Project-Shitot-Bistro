@@ -11,14 +11,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /*
- * This class is connect to mySQL DB for G21-prototype server. 
+ * This class is connect to mySQL DB for G3-prototype server. 
  */
 public class mysqlConnection {
 
 	public static Connection conn;
 
 	/*
-	 * This method is connecting to out G21-prototype server
+	 * This method is connecting to out G3-prototype server
 	 */
 	public static String connectToDB() {
 		String ret ="";
