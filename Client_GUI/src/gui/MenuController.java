@@ -127,6 +127,9 @@ public class MenuController {
 
 		case UpdateNumberOfGuests:
 			break;
+			
+		case ReserveTable:
+			break;
 
 		default:
 			System.out.println("error? you selected: " + userselect);

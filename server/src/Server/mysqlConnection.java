@@ -1,5 +1,6 @@
 package Server;
 
+import java.sql.Timestamp;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -9,6 +10,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+
+import entities.Reservations;
 
 /*
  * This class is connect to mySQL DB for G3-prototype server. 
@@ -145,5 +148,58 @@ public class mysqlConnection {
 		}
 		return orders;
 	}
+	
+	public static boolean insertReservation(Reservations reservation) {
+
+	    String sql =
+	        "INSERT INTO orders " +
+	        "(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+	        "`order_time&date`, `time&date_of_placing_order`, status, is_subscriber, email, phone) " +
+	        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+	    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+	        // 1️⃣ subscriber_id (יכול להיות NULL)
+	        if (reservation.getSubscriberId() == null) {
+	            pstmt.setNull(1, java.sql.Types.INTEGER);
+	        } else {
+	            pstmt.setInt(1, reservation.getSubscriberId());
+	        }
+
+	        // 2️⃣ number_of_guests
+	        pstmt.setInt(2, reservation.getNumberOfGuests());
+
+	        // 3️⃣ confirmation_code
+	        pstmt.setString(3, reservation.getConfirmationCode());
+
+	        // 4️⃣ order_number
+	        pstmt.setString(4, reservation.getOrderNumber());
+
+	        // 5️⃣ order_time&date (תאריך ושעת ההזמנה למסעדה)
+	        pstmt.setTimestamp(5,Timestamp.valueOf(reservation.getOrderDateTime()));
+
+	        // 6️⃣ time&date_of_placing_order (מתי הוזמנה ההזמנה)
+	        pstmt.setTimestamp(6,Timestamp.valueOf(reservation.getPlacingOrderDate()));
+
+	        // 7️⃣ status
+	        pstmt.setString(7, reservation.getStatus());
+
+	        // 8️⃣ is_subscriber
+	        pstmt.setBoolean(8, reservation.isSubscriber());
+	        
+	        pstmt.setString(9, reservation.getEmail());
+	        
+	        pstmt.setString(10, reservation.getPhoneNumber());
+
+	        pstmt.executeUpdate();
+	        return true;
+
+	    } catch (SQLException e) {
+	        System.err.println("❌ Error inserting reservation");
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
+
 
 }

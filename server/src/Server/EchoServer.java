@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import common.UserSelect;
+import entities.Reservations;
 import gui.ClientConnectionStatusController;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -39,6 +40,23 @@ public class EchoServer extends AbstractServer {
 		int flag = 0;
 		String clientIp = client.getInetAddress().getHostAddress();
 		String clientPCName = client.getInetAddress().getHostName();
+		
+		// ===== RESERVE TABLE =====
+		if (msg instanceof Reservations) {
+
+		    Reservations reservation = (Reservations) msg;
+
+		    boolean success = mysqlConnection.insertReservation(reservation);
+
+		    if (success) {
+		        this.sendToAllClients("ReservationAdded");
+		    } else {
+		        this.sendToAllClients("Error");
+		    }
+
+		    return; // חשוב! לא להמשיך ל-switch
+		}
+
 		
 		HashMap<String, String> infoFromUser = (HashMap<String, String>) msg;
 		String menuChoiceString = (infoFromUser.keySet().iterator().next());

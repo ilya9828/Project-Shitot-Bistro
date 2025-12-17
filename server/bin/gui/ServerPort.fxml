@@ -9,7 +9,7 @@
 <Pane prefHeight="283.0" prefWidth="387.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ServerPortFrameController">
    <children>
       <Button fx:id="btnDone" layoutX="298.0" layoutY="232.0" mnemonicParsing="false" onAction="#Connect" text="Connect" />
-      <TextField fx:id="portxt" layoutX="131.0" layoutY="85.0" />
+      <TextField fx:id="portxt" text="5555" layoutX="131.0" layoutY="85.0" />
       <Button fx:id="btnExit" layoutX="25.0" layoutY="232.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
       <Label fx:id="lblport" layoutX="75.0" layoutY="87.0" text="Port:" />
       <Label id="lbllocalip" fx:id="lbllocalip" layoutX="67.0" layoutY="44.0" prefHeight="17.0" prefWidth="221.0" text="Your ip:" />

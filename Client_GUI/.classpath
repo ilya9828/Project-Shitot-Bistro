@@ -6,7 +6,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="src" path="/OCSF"/>
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/javafx.base.jar"/>
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/javafx.controls.jar"/>
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/javafx.fxml.jar"/>
@@ -18,5 +17,7 @@
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/jdk.jsobject.jar"/>
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/jfx.incubator.input.jar"/>
 	<classpathentry kind="lib" path="C:/Users/user1/Desktop/javafx-sdk-25.0.1/lib/jfx.incubator.richtext.jar"/>
-	<classpathentry kind="output" path="bin"/>
+	<classpathentry kind="src" path="/OCSF"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Common"/>
+	<classpathentry kind="output" path="src"/>
 </classpath>
