@@ -6,7 +6,7 @@ package common;
 public enum UserSelect {
     ShowAllOrders("Show All Orders"),
     UpdateOrderDate("Update Order Date"),
-    UpdateNumberOfGuests("Update Number Of Guests"),
+    EditReservetaion("Edit Reservetaion"),
 	ReserveTable("Reserve Table");
 
     private final String displayName;

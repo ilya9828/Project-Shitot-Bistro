@@ -202,6 +202,41 @@ public class mysqlConnection {
 	        return false;
 	    }
 	}
+	
+	
+	public static boolean editReservation(Reservations reservation) {
+
+	    String sql =
+	        "UPDATE orders SET " +
+	        "(number_of_guests = ?, order_time_date = ?, email = ?, phone = ?, name = ?) " +
+	        "WHERE confirmation_code = ?";
+
+	    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+
+	        // 2️⃣ number_of_guests
+	        pstmt.setInt(1, reservation.getNumberOfGuests());
+
+	        // 5️⃣ order_time&date (תאריך ושעת ההזמנה למסעדה)
+	        pstmt.setTimestamp(2,Timestamp.valueOf(reservation.getOrderDateTime()));
+
+	        pstmt.setString(3, reservation.getEmail());
+	        
+	        pstmt.setString(4, reservation.getPhoneNumber());
+	        
+	        pstmt.setString(5, reservation.getName());
+	        
+	        pstmt.setString(6, reservation.getConfirmationCode());
+
+	        pstmt.executeUpdate();
+	        return true;
+
+	    } catch (SQLException e) {
+	        System.err.println("❌ Error inserting reservation");
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
 
 
 }

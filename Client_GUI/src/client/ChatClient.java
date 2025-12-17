@@ -1,12 +1,12 @@
 package client;
 
-import ocsf.client.*;
-import common.ChatIF;
-import javafx.application.Platform;
-
-import java.io.*;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import common.ChatIF;
+import entities.Reservations;
+import ocsf.client.AbstractClient;
 
 /**
  * This class is handling the messages from the client to the server and the other way.
@@ -19,6 +19,7 @@ public class ChatClient extends AbstractClient {
 	ChatIF clientUI;
 	public static List<String> ordersTable = new ArrayList<String>();
 	public static String fromserverString = new String();
+	public static Reservations fromserverReservation = new Reservations();
 	public static boolean awaitResponse = false;
 
 	public ChatClient(String host, int port, ChatIF clientUI) throws IOException {
@@ -41,6 +42,9 @@ public class ChatClient extends AbstractClient {
 		}
 		else if (msg.getClass().equals(fromserverString.getClass())) {
 			this.fromserverString = (String) msg;
+		}
+		else if (msg.getClass().equals(fromserverReservation.getClass())) {
+			this.fromserverReservation = (Reservations) msg;
 		}
 
 		else {
