@@ -7,7 +7,8 @@ public enum UserSelect {
     ShowAllOrders("Show All Orders"),
     UpdateOrderDate("Update Order Date"),
     UpdateNumberOfGuests("Update Number Of Guests"),
-	ReserveTable("Reserve Table");
+	ReserveTable("Reserve Table"),
+	CheckIn("Check In");
 
     private final String displayName;
 

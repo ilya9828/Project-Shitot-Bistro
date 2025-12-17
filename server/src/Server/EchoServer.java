@@ -94,6 +94,18 @@ public class EchoServer extends AbstractServer {
 			}
 			flag++;
 			break;
+			
+		case CheckIn:
+			String CheckIn = mysqlConnection.CheckIn(infoFromUser.get(menuChoiceString));
+			this.sendToAllClients(CheckIn);
+			flag++;
+			break;
+			
+		case LostCode:
+			String Code = mysqlConnection.LostCode(infoFromUser.get(menuChoiceString));
+			this.sendToAllClients(Code);
+			flag++;
+			break;
 		//This case is loading the requested ID from the DB and sending to the client.
 		case LoadOrders:
 			String RequestedID = mysqlConnection.Load(Integer.parseInt(infoFromUser.get(menuChoiceString)));

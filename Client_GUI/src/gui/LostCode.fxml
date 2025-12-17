@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox
+    xmlns="http://javafx.com/javafx"
+    xmlns:fx="http://javafx.com/fxml"
+    fx:controller="gui.LostCodeController"
+    spacing="15"
+    alignment="CENTER"
+    prefWidth="350"
+    prefHeight="250">
+
+    <Label text="Recover Confirmation Code"/>
+
+    <TextField
+        fx:id="inputField"
+        promptText="Enter Email or Phone Number"/>
+
+    <Button text="Recover Code" onAction="#handleRecover"/>
+
+    <Label fx:id="resultLabel"/>
+
+</VBox>

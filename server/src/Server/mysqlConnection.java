@@ -1,6 +1,8 @@
 package Server;
 
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -10,7 +12,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-
+import java.sql.*;
 import entities.Reservations;
 
 /*
@@ -89,6 +91,75 @@ public class mysqlConnection {
 			return false;
 		}
 	}
+	
+	public static String CheckIn(String ConfirmationCode) {
+		PreparedStatement stmt;
+		try {
+			stmt = conn.prepareStatement(
+				    "UPDATE Orders SET status = ? WHERE confirmation_code = ?"
+				);
+				stmt.setString(1, "CheckedIN"); 
+				stmt.setString(2, ConfirmationCode);
+
+				stmt.executeUpdate();
+
+			return "CheckInSuccess";
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return "CheckInFailed";
+		}
+	}
+	
+
+
+	public static String LostCode(String emailOrPhone) {
+	    PreparedStatement stmt = null;
+	    ResultSet rs = null;
+
+	    try {
+	        String query =
+	            "SELECT confirmation_code " +
+	            "FROM orders " +
+	            "WHERE (email = ? OR phone = ?) " +
+	            "AND order_time_date >= ? " +
+	            "AND order_time_date < ? " +
+	            "ORDER BY order_time_date DESC " +
+	            "LIMIT 1";
+
+	        // גבולות היום (00:00 עד 00:00 של מחר)
+	        LocalDate today = LocalDate.now();
+	        LocalDateTime startOfDay = today.atStartOfDay();
+	        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
+
+	        stmt = conn.prepareStatement(query);
+	        stmt.setString(1, emailOrPhone);
+	        stmt.setString(2, emailOrPhone);
+	        stmt.setTimestamp(3, Timestamp.valueOf(startOfDay));
+	        stmt.setTimestamp(4, Timestamp.valueOf(startOfTomorrow));
+
+	        rs = stmt.executeQuery();
+
+	        if (rs.next()) {
+	            String code = rs.getString("confirmation_code");
+	            return "OrderCode:" + code;
+	        } else {
+	            return "LostOrderFailed";
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return "ServerError";
+	    } finally {
+	        try {
+	            if (rs != null) rs.close();
+	            if (stmt != null) stmt.close();
+	        } catch (SQLException e) {
+	            e.printStackTrace();
+	        }
+	    }
+	}
+
+
 
 
 	/**
