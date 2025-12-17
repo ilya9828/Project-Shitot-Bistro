@@ -28,8 +28,8 @@
     <DatePicker fx:id="datePicker" GridPane.columnIndex="1" GridPane.rowIndex="0" />
     <ComboBox fx:id="timeComboBox" promptText="Select time" GridPane.columnIndex="1" GridPane.rowIndex="1" />
     <TextField fx:id="guestsField" promptText="Guests" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-    <TextField fx:id="emailField" promptText="name" GridPane.columnIndex="1" GridPane.rowIndex="3" />
-    <TextField fx:id="phoneField" promptText="05XXXXXXXX/Email" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+    <TextField fx:id="name" promptText="name" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+    <TextField fx:id="input" promptText="05XXXXXXXX/Email" GridPane.columnIndex="1" GridPane.rowIndex="4" />
 
     <!-- Reserve Button -->
     <Button onAction="#handleReserve" text="Reserve" GridPane.columnIndex="1" GridPane.rowIndex="5" />

@@ -38,10 +38,10 @@ public class ReserveTableController {
     private TextField guestsField;
 
     @FXML
-    private TextField emailField;
-
+    private TextField name;
     @FXML
-    private TextField phoneField;
+    private TextField input;
+    
 
     @FXML
     private Button reserveButton;
@@ -69,6 +69,7 @@ public class ReserveTableController {
             timeComboBox.getItems().add(time.format(formatter));
             time = time.plusMinutes(30);
         }
+        
 
         System.out.println("Time options loaded: " + timeComboBox.getItems().size());
     }
@@ -106,17 +107,31 @@ public class ReserveTableController {
     @FXML
     private void handleReserve() {
 
-        // ===== קריאת נתונים מה-UI =====
         LocalDate reservationDate = datePicker.getValue();
         String time = timeComboBox.getValue();
         String guestsText = guestsField.getText();
-        String email = emailField.getText();
-        String phoneNumber = phoneField.getText();
-
+        String inputText = input.getText(); // השדה שמקבל קלט
+        String email = "";
+        String phoneNumber = "";
+        String nameText = name.getText();
         
+        if (inputText.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+            email = inputText;
+            phoneNumber = "";
+        } 
+        else if (inputText.matches("\\d{10,12}")) {
+            phoneNumber = inputText;
+            email = "";
+        } 
+        else {
+            email = "";
+            phoneNumber = "";
+            showError("Invalid input");
+        }
+
 
 		if (reservationDate == null || time == null ||
-            guestsText.isEmpty() || email.isEmpty() || phoneNumber.isEmpty()) {
+            guestsText.isEmpty() || inputText.isEmpty()) {
             lblStatus.setText("Please fill all fields.");
             return;
         }
@@ -163,7 +178,8 @@ public class ReserveTableController {
                 "PENDING",
                 isSubscriber,
                 email,
-                phoneNumber
+                phoneNumber,
+                nameText
                 
         );
 
@@ -201,7 +217,8 @@ public class ReserveTableController {
             return code.toString();
         
 
-    }
+        }
+        
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Error");

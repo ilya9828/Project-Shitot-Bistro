@@ -20,7 +20,7 @@ public class Reservations implements Serializable {
     private String email;
     private String phoneNumber;                   // status
     private boolean isSubscriber;            // is_subscriber
-
+    private String name;
     // ===== Constructor =====
     public Reservations(Integer subscriberId,
                        int numberOfGuests,
@@ -31,7 +31,8 @@ public class Reservations implements Serializable {
                        String status,
                        boolean isSubscriber,
                        String email,
-                       String phoneNumber) {
+                       String phoneNumber,
+                       String name) {
 
         this.subscriberId = subscriberId;
         this.numberOfGuests = numberOfGuests;
@@ -43,7 +44,7 @@ public class Reservations implements Serializable {
         this.isSubscriber = isSubscriber;
         this.email = email;
         this.phoneNumber = phoneNumber;
-
+        this.name = name;
         
     }
 
@@ -88,6 +89,9 @@ public class Reservations implements Serializable {
     public boolean isSubscriber() {
         return isSubscriber;
     }
+    public String getName() {
+        return name;
+    }
     
  // ===== Setters  =====
 
@@ -120,7 +124,10 @@ public class Reservations implements Serializable {
     
     public void setPhoneNumber(String PhoneNumber) {
         this.phoneNumber = PhoneNumber;
-}
+    }
     
+    public void setName(String name) {
+        this.name = name;
+    }
     
 }
