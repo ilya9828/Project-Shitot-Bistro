@@ -2,9 +2,6 @@ package gui;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
 
 import client.ChatClient;
 import client.ClientUI;

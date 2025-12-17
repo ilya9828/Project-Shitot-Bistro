@@ -2,6 +2,7 @@ package client;
 
 import ocsf.client.*;
 import common.ChatIF;
+import javafx.application.Platform;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ public class ChatClient extends AbstractClient {
 		else if (msg.getClass().equals(fromserverString.getClass())) {
 			this.fromserverString = (String) msg;
 		}
+
 		else {
 			System.out.println("The return from the server class is: " + msg.getClass());
 		}

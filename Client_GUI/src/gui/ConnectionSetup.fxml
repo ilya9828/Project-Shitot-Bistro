@@ -6,7 +6,7 @@
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.text.Font?>
 
-<AnchorPane prefHeight="261.0" prefWidth="246.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ConnectionSetupController">
+<AnchorPane prefHeight="266.0" prefWidth="280.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ConnectionSetupController">
    <children>
       <Button id="btnExit" fx:id="btnExit" layoutX="14.0" layoutY="212.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
       <Button id="btnConnect" fx:id="btnConnect" layoutX="138.0" layoutY="206.0" mnemonicParsing="false" onAction="#Connect" prefHeight="38.0" prefWidth="90.0" text="Connect">
@@ -18,7 +18,7 @@
       <Label id="lblinstruction" fx:id="lblinstruction" layoutX="28.0" layoutY="14.0" prefHeight="18.0" prefWidth="190.0" text="Please enter the server's ip address:" />
       <Label id="lblLocalip" fx:id="lblLocalip" layoutX="11.0" layoutY="131.0" prefHeight="18.0" prefWidth="222.0" text="Your ip:" />
       <Label id="lblport" fx:id="lblport" layoutX="20.0" layoutY="94.0" text="Port:" />
-      <TextField id="porttxt" fx:id="porttxt" layoutX="77.0" layoutY="91.0" />
+      <TextField id="porttxt" fx:id="porttxt" text="5555" layoutX="77.0" layoutY="91.0" />
       <Label id="lblerrmsg" fx:id="lblerrmsg" alignment="CENTER" contentDisplay="CENTER" layoutX="38.0" layoutY="154.0" prefHeight="46.0" prefWidth="167.0" textAlignment="CENTER" textFill="#b91b1b" wrapText="true">
          <font>
             <Font name="System Bold" size="12.0" />

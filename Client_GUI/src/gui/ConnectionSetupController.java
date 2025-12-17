@@ -54,6 +54,7 @@ public class ConnectionSetupController {
 	//This method is getting the ip that the user wrote in the textfield.
 	private String getIP() {
 		return serveriptxt.getText();
+		
 	}
 	
 	//This method is getting the port that the user wrote in the textfield.
@@ -150,19 +151,52 @@ public class ConnectionSetupController {
 	 * @param primaryStage	-Stage of this GUI to upload all the data.
 	 */
 	public void start(Stage primaryStage){
-		Parent root;
-		try {
-			root = FXMLLoader.load(getClass().getResource("/gui/ConnectionSetup.fxml"));
-			Scene scene = new Scene(root);
-			scene.getStylesheets().add(getClass().getResource("/gui/ConnectionSetup.css").toExternalForm());
-			primaryStage.setTitle("Connection Setup Tool");
-			primaryStage.setScene(scene);
-			primaryStage.show();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+	    Parent root;
+	    try {
+	        root = FXMLLoader.load(getClass().getResource("/gui/ConnectionSetup.fxml"));
+	        Scene scene = new Scene(root);
+	        scene.getStylesheets().add(getClass().getResource("/gui/ConnectionSetup.css").toExternalForm());
+	        primaryStage.setTitle("Connection Setup Tool");
+	        primaryStage.setScene(scene);
 
+	        // לוכד סגירת חלון דרך האיקס
+	        primaryStage.setOnCloseRequest(event -> {
+	            try {
+	                handleExit(); // שולח הודעה לשרת לפני סגירה
+	            } catch (Exception e) {
+	                e.printStackTrace();
+	            }
+	            Platform.exit(); // סוגר את האפליקציה
+	        });
+
+	        primaryStage.show();
+	    } catch (IOException e) {
+	        e.printStackTrace();
+	    }
 	}
+	
+	private void handleExit() throws Exception {
+	    System.out.println("Disconnecting from server...");
+	    // כאן תשים את הקוד לשליחת הודעת "Disconnected" לשרת
+	    HashMap<String, String> disconnectMsg = new HashMap<>();
+	    disconnectMsg.put("Disconnect", localIp);
+	    ClientUI.chat.accept(disconnectMsg);
+
+	    System.out.println("Exit Connection Setup Tool");
+	}
+	
+	
+	/**This constructor close this system.
+	 * @param event - the click on the Exit btn.
+	 * @throws Exception
+	 */
+	public void getExitBtn(ActionEvent event) throws Exception {
+	    handleExit();
+	    Platform.exit(); // סוגר את ה-GUI
+	}
+
+
+
 
 	
 	/** init starting automaticly when the GUI is up.
@@ -173,20 +207,13 @@ public class ConnectionSetupController {
 		try {
 			localIp = InetAddress.getLocalHost().getHostAddress();
 			lblLocalip.setText("Your local ip: \t" + localIp);
+			serveriptxt.setText(localIp);
+			
+			
 		} catch (UnknownHostException e) {
 			lblLocalip.setText("Unable to determine the local IP address\n Unknown IP");
 			e.printStackTrace();
 		}
-	}
-
-	
-	/**This constructor close this system.
-	 * @param event - the click on the Exit btn.
-	 * @throws Exception
-	 */
-	public void getExitBtn(ActionEvent event) throws Exception {
-		System.out.println("Exit Connection Setup Tool");
-		System.exit(0);
 	}
 
 }
