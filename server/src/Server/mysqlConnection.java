@@ -154,8 +154,8 @@ public class mysqlConnection {
 	    String sql =
 	        "INSERT INTO orders " +
 	        "(subscriber_id, number_of_guests, confirmation_code, order_number, " +
-	        "`order_time&date`, `time&date_of_placing_order`, status, is_subscriber, email, phone) " +
-	        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	        "order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone,name) " +
+	        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
 
 	    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
@@ -190,6 +190,8 @@ public class mysqlConnection {
 	        pstmt.setString(9, reservation.getEmail());
 	        
 	        pstmt.setString(10, reservation.getPhoneNumber());
+	        
+	        pstmt.setString(11, reservation.getName());
 
 	        pstmt.executeUpdate();
 	        return true;
