@@ -6,18 +6,18 @@
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.layout.Pane?>
 
-<Pane prefHeight="341.0" prefWidth="501.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ClientConnectionStatusController">
+<Pane prefHeight="420.0" prefWidth="620.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ClientConnectionStatusController">
    <children>
-      <Button fx:id="btnExit" layoutX="453.0" layoutY="303.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
-      <TableView id="ClientConnectionsTable" fx:id="ClientConnectionsTable" layoutX="34.0" layoutY="34.0" prefHeight="200.0" prefWidth="437.0">
+      <Button fx:id="btnExit" layoutX="520.0" layoutY="360.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
+      <TableView id="ClientConnectionsTable" fx:id="ClientConnectionsTable" layoutX="34.0" layoutY="34.0" prefHeight="260.0" prefWidth="550.0">
         <columns>
           <TableColumn id="ClientIPColumn" fx:id="ClientIPColumn" prefWidth="168.0" text="Client IP" />
           <TableColumn id="HostNameColumn" fx:id="HostNameColumn" prefWidth="161.0" text="HostName" />
             <TableColumn id="StatusColumn" fx:id="StatusColumn" prefWidth="107.0" text="Status" />
         </columns>
       </TableView>
-      <Button id="btnRefresh" fx:id="btnRefresh" layoutX="224.0" layoutY="243.0" mnemonicParsing="false" onAction="#Refreshmethod" text="Refresh" />
-      <Label id="lblShowconnection" fx:id="lblShowconnection" alignment="CENTER" layoutX="100.0" layoutY="8.0" prefHeight="17.0" prefWidth="302.0" />
-      <Label id="lblNewConnection" fx:id="lblNewConnection" alignment="CENTER" contentDisplay="CENTER" layoutX="12.0" layoutY="278.0" prefHeight="17.0" prefWidth="480.0" textAlignment="CENTER" />
+      <Button id="btnRefresh" fx:id="btnRefresh" layoutX="270.0" layoutY="305.0" mnemonicParsing="false" onAction="#Refreshmethod" text="Refresh" />
+      <Label id="lblShowconnection" fx:id="lblShowconnection" alignment="CENTER" layoutX="150.0" layoutY="8.0" prefHeight="17.0" prefWidth="320.0" />
+      <Label id="lblNewConnection" fx:id="lblNewConnection" alignment="CENTER" contentDisplay="CENTER" layoutX="34.0" layoutY="335.0" prefHeight="17.0" prefWidth="550.0" textAlignment="CENTER" />
    </children>
 </Pane>

@@ -4,11 +4,13 @@ package common;
  * 
  */
 public enum UserSelect {
-    ShowAllOrders("Show All Orders"),
+	ShowAllOrders("Show All Orders"),
     UpdateOrderDate("Update Order Date"),
     UpdateNumberOfGuests("Update Number Of Guests"),
 	ReserveTable("Reserve Table"),
-	CheckIn("Check In");
+	CheckIn("Check In"),
+	WaitingList("Waiting List"),
+	PayBill("Pay Bill");
 
     private final String displayName;
 

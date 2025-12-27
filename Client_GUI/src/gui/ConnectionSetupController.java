@@ -109,14 +109,35 @@ public class ConnectionSetupController {
 							if (!ChatClient.fromserverString.equals("Error!")) {
 								System.out.println("Connected to the server");
 								try {
-									FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/Menu.fxml"));
+									FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/UserIdentification.fxml"));
 									Parent root = loader.load();
 									Stage stage = new Stage();
 									Scene scene = new Scene(root);
 									scene.getStylesheets()
-											.add(getClass().getResource("/gui/Menu.css").toExternalForm());
+											.add(getClass().getResource("/gui/UserIdentification.css").toExternalForm());
 									stage.setScene(scene);
-									stage.setTitle("Menu");
+									stage.setTitle("User Identification");
+									
+									// טיפול בסגירת חלון דרך האיקס
+									stage.setOnCloseRequest(closeEvent -> {
+										try {
+											if (ClientUI.chat != null) {
+												System.out.println("Disconnecting from the Server...");
+												HashMap<String, String> EndingConnections = new HashMap<String, String>();
+												EndingConnections.put("Disconnect", "");
+												ClientUI.chat.accept(EndingConnections);
+												// מחכה קצת כדי שההודעה תשלח
+												try {
+													Thread.sleep(200);
+												} catch (InterruptedException e) {
+													e.printStackTrace();
+												}
+											}
+										} catch (Exception e) {
+											e.printStackTrace();
+										}
+									});
+									
 									stage.show();
 									((Node) event.getSource()).getScene().getWindow().hide();
 								} catch (IOException e) {
@@ -178,9 +199,17 @@ public class ConnectionSetupController {
 	private void handleExit() throws Exception {
 	    System.out.println("Disconnecting from server...");
 	    // כאן תשים את הקוד לשליחת הודעת "Disconnected" לשרת
-	    HashMap<String, String> disconnectMsg = new HashMap<>();
-	    disconnectMsg.put("Disconnect", localIp);
-	    ClientUI.chat.accept(disconnectMsg);
+	    if (ClientUI.chat != null) {
+		    HashMap<String, String> disconnectMsg = new HashMap<>();
+		    disconnectMsg.put("Disconnect", "");
+		    ClientUI.chat.accept(disconnectMsg);
+		    // מחכה קצת כדי שההודעה תשלח
+		    try {
+		        Thread.sleep(200);
+		    } catch (InterruptedException e) {
+		        e.printStackTrace();
+		    }
+	    }
 
 	    System.out.println("Exit Connection Setup Tool");
 	}
@@ -206,7 +235,7 @@ public class ConnectionSetupController {
 	public void initialize() {
 		try {
 			localIp = InetAddress.getLocalHost().getHostAddress();
-			lblLocalip.setText("Your local ip: \t" + localIp);
+			lblLocalip.setText("Your IP: " + localIp);
 			serveriptxt.setText(localIp);
 			
 			

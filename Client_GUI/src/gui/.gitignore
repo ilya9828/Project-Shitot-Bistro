@@ -6,3 +6,7 @@
 /UpdateOrderDateController.class
 /CheckInController.class
 /LostCodeController.class
+/UserIdentificationController.class
+/SubMenuController.class
+/BaseMenuController.class
+/GuestMenuController.class
