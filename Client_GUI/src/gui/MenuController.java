@@ -125,7 +125,7 @@ public class MenuController {
 		case UpdateOrderDate:
 			break;
 
-		case UpdateNumberOfGuests:
+		case EditReservetaion:
 			break;
 			
 		case ReserveTable:

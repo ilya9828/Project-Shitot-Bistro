@@ -5,6 +5,7 @@ import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import entities.Reservations;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -42,11 +43,13 @@ public class UpdateNumberOfGuestsController {
 	private Label lblErr;
 
 	@FXML 
-	private TextField txtOrderNumber;
+	private TextField txtConCode;
 	@FXML 
 	private TextField txtOrderDate;
 	@FXML 
-	private TextField txtGuests;
+	private TextField txtOrderName;
+	@FXML 
+	private TextField guestsField;
 	@FXML 
 	private TextField txtConfirm;
 	@FXML 
@@ -91,13 +94,13 @@ public class UpdateNumberOfGuestsController {
 	public void UpdateBtn(ActionEvent event) {
 
 	    if (loaded <= 0) {
-	        lblErr.setText("You must load an OrderNumber first.");
+	        lblErr.setText("You must load an Order first.");
 	        return;
 	    }
 
 	    // Build update data
 	    HashMap<String, String> updateHashMap = new HashMap<>();
-	    String newInfo = txtOrderNumber.getText() + " " + txtGuests.getText();
+	    String newInfo = txtConCode.getText() + " " + txtGuests.getText();
 	    updateHashMap.put("UpdateNumberOfGuests", newInfo);
 
 	    lblStatus.setText("Request sent to the server.\nPlease wait...");
@@ -126,57 +129,83 @@ public class UpdateNumberOfGuestsController {
 	 * @param event - the click on the load button.
 	 */
 	public void Loadbtn(ActionEvent event) {
-		String idnumber = txtOrderNumber.getText();
-		//The string contains only numbers.
-		if (idnumber.matches("\\d+")) {
-		    System.out.println("");
-		    HashMap<String, String> loadthisid = new HashMap<String, String>();
-			loadthisid.put("LoadOrders", idnumber);
-			ClientUI.chat.accept(loadthisid);
-			while (ChatClient.fromserverString.equals(new String())) {
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			}
-			if (!ChatClient.fromserverString.contains(",")) {
-				lblErr.setText("Cant load the requested ID. Please make sure you entered the right id.");
-			} else {
-				lblErr.setText("Requested ID loaded.\nYou can update ONLY the phone number:");
-				loaded = 1;
-				LoadDetails(ChatClient.fromserverString);
-			}
-			ChatClient.ResetServerString();
-		//The string contains more chars that not digits or empty.
-		} else {
-			lblErr.setText("Please enter id that contains ONLY digits");
-		}
+	    String idnumber = txtConCode.getText();
+
+	    // check input: digits only
+	    if (!idnumber.matches("\\d+")) {
+	        lblErr.setText("Please enter id that contains ONLY digits");
+	        return;
+	    }
+
+	    // send request to server
+	    HashMap<String, String> request = new HashMap<>();
+	    request.put("LoadOrders", idnumber);
+	    ClientUI.chat.accept(request);
+
+	    // wait for server response
+	    while (ChatClient.fromserverReservation == null) {
+	        try {
+	            Thread.sleep(100);
+	        } catch (InterruptedException e) {
+	            e.printStackTrace();
+	        }
+	    }
+
+	    Reservations res = ChatClient.fromserverReservation;
+
+	    // validate received reservation
+	    if (res.getOrderNumber() == null) {
+	        lblErr.setText("Cant load the requested ID. Please make sure you entered the right id.");
+	    } else {
+	        lblErr.setText("Requested ID loaded.");
+	        loaded = 1;
+	        LoadDetails(res);   // <-- load using Reservations object
+	    }
+
+	    ChatClient.resetReservation();
 	}
+
 
 	/** This method is getting a string of an order and loading that data to the GUI
 	 * enabling the only fields that we wants that the user will update.
 	 * @param orderDetails
 	 */
-	public void LoadDetails(String orderDetails) {
+	public void LoadDetails(Reservations res) {
 
-	    String[] parts = orderDetails.split(", ");
+	    // Confirmation code – לא ניתן לעריכה
+	    txtConCode.setText(res.getConfirmationCode());
+	    txtConCode.setEditable(false);
 
-	    this.txtOrderNumber.setText(parts[0]);      // order_number
-	    this.txtOrderDate.setText(parts[1]);        // order_date
-	    this.txtGuests.setText(parts[2]);           // number_of_guests
-	    this.txtConfirm.setText(parts[3]);          // confirmation_code
-	    this.txtSubscriberId.setText(parts[4]);     // subscriber_id
-	    this.txtPlacingDate.setText(parts[5]);      // date_of_placing_order
+	    // Date
+	    if (res.getOrderDateTime() != null) {
+	        datePicker.setValue(res.getOrderDateTime().toLocalDate());
+	    }
 
-	    // Allow editing ONLY for the field you want to update:
-	    txtOrderNumber.setEditable(false);
-	    txtOrderDate.setEditable(false);
-	    txtGuests.setEditable(true);      
-	    txtConfirm.setEditable(false);
-	    txtSubscriberId.setEditable(false);
-	    txtPlacingDate.setEditable(false);
+	    // Time
+	    if (res.getOrderDateTime() != null) {
+	        String time = res.getOrderDateTime()
+	                .toLocalTime()
+	                .withSecond(0)
+	                .withNano(0)
+	                .toString();
+	        timeComboBox.setValue(time);
+	    }
+
+	    // Editable fields
+	    guestsField.setText(String.valueOf(res.getNumberOfGuests()));
+	    guestsField.setEditable(true);
+
+	    txtOrderName.setText(res.getName());
+	    nameField.setEditable(true);
+
+	    phoneField.setText(res.getPhoneNumber());
+	    phoneField.setEditable(true);
+
+	    emailField.setText(res.getEmail());
+	    emailField.setEditable(true);
 	}
+
+
 	
 	/*
 	 * This method is for the exit button sending a message to the server that now we are disconnecting,
