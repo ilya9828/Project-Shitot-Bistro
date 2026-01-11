@@ -47,16 +47,46 @@ public class EchoServer extends AbstractServer {
 
 		    Reservations reservation = (Reservations) msg;
 
-		    boolean success = mysqlConnection.insertReservation(reservation);
+		    String result = mysqlConnection.insertReservation(reservation);
 
-		    if (success) {
+		    if (result.equals("SUCCESS")) {
 		        this.sendToAllClients("ReservationAdded");
+		    } else if (result.startsWith("NO_CAPACITY:")) {
+		        // Send the result with alternative times
+		        this.sendToAllClients(result);
+		    } else if (result.startsWith("INVALID_DATE_TIME:")) {
+		        // Send the invalid date/time error message
+		        this.sendToAllClients(result);
 		    } else {
 		        this.sendToAllClients("Error");
 		    }
 
-		    return; // חשוב! לא להמשיך ל-switch
+		    return;
 		}
+
+				// ===== WAITING LIST =====
+		if (msg instanceof WaitingEntry) {
+		    WaitingEntry entry = (WaitingEntry) msg;
+		    String result = mysqlConnection.insertWaitingEntry(entry);
+		    
+		    if (result.startsWith("TABLE_AVAILABLE:") || result.startsWith("WAITING_LIST:")) {
+		        // Send the result (either table location or confirmation code)
+		        this.sendToAllClients(result);
+		    } else {
+		        this.sendToAllClients("Error");
+		    }
+		    
+		    return;
+		}
+		// ===== PAYMENT =====
+		if (msg instanceof Payment) {
+		    Payment payment = (Payment) msg;
+		    String result = mysqlConnection.processPayment(payment);
+		    this.sendToAllClients(result);
+		    return;
+		}
+
+
 
 		
 		HashMap<String, String> infoFromUser = (HashMap<String, String>) msg;
@@ -65,29 +95,27 @@ public class EchoServer extends AbstractServer {
 		UserSelect x = UserSelect.getSelectionFromEnumName(menuChoiceString);
 		
 		switch (x) {
-		//This case is getting the table from the SQL and sending to the client
-		case ShowAllOrders:
-			List<String> TheTable = mysqlConnection.GetOrdersTable();
-			this.sendToAllClients(TheTable);
-			flag++;
-			break;
 		//This case is getting the information to change from the user and saving in DB.
 		case UpdateOrderDate:
 			
-			String orderDate[] = infoFromUser.get(menuChoiceString).split(" ");
-			boolean succ1 = mysqlConnection.updateOrderDate(Integer.parseInt(orderDate[0]),java.sql.Date.valueOf(orderDate[1]));
-			if (succ1) {
+			// value format: "<confirmation_code> <timestamp>"
+			// use split limit 2 so the full timestamp (with space) stays in index 1
+			String orderDate[] = infoFromUser.get(menuChoiceString).split(" ", 2);
+			String updateResult = mysqlConnection.updateOrderDate(orderDate[0], java.sql.Timestamp.valueOf(orderDate[1]));
+			if ("Updated".equals(updateResult)) {
 				this.sendToAllClients("Updated");
+			} else if (updateResult.startsWith("NO_CAPACITY:")) {
+				// Send the result with alternative times (if available)
+				this.sendToAllClients(updateResult);
 			} else {
 				this.sendToAllClients("Error");
 			}
 
 			flag++;
 			break;
-		//This case is getting the information to change from the user and saving in DB.
 		case UpdateNumberOfGuests:
 			String numOfguests[] = infoFromUser.get(menuChoiceString).split(" ");
-			boolean succ2 = mysqlConnection.updateNumOfGuests(Integer.parseInt(numOfguests[0]), Integer.parseInt(numOfguests[1]));
+			boolean succ2 = mysqlConnection.updateNumOfGuests(numOfguests[0], Integer.parseInt(numOfguests[1]));
 			if (succ2) {
 				this.sendToAllClients("Updated");
 			} else {
@@ -107,6 +135,98 @@ public class EchoServer extends AbstractServer {
 			this.sendToAllClients(Code);
 			flag++;
 			break;
+		case ExitWaitingList:
+			String exitResult = mysqlConnection.exitWaitingList(infoFromUser.get(menuChoiceString));
+			this.sendToAllClients(exitResult);
+			flag++;
+			break;
+		case JoinWaitingListSub:
+			// value format: "<subscriberID> <number_of_guests>"
+			String[] joinParts = infoFromUser.get(menuChoiceString).split(" ");
+			if (joinParts.length == 2) {
+				String subIdStr = joinParts[0];
+				int guests = Integer.parseInt(joinParts[1]);
+				String joinResult = mysqlConnection.insertWaitingEntryForSubscriber(subIdStr, guests);
+				if (joinResult.startsWith("TABLE_AVAILABLE:") || joinResult.startsWith("WAITING_LIST:")) {
+					// Send the result (either table location or confirmation code)
+					this.sendToAllClients(joinResult);
+				} else {
+					this.sendToAllClients("Error");
+				}
+			} else {
+				this.sendToAllClients("Error");
+			}
+			flag++;
+			break;
+		case ExitWaitingListSub:
+			String subIdForExit = infoFromUser.get(menuChoiceString);
+			String exitResultSub = mysqlConnection.exitWaitingListForSubscriber(subIdForExit);
+			this.sendToAllClients(exitResultSub);
+			flag++;
+			break;
+		case ValidateSubscriber:
+			String subid = infoFromUser.get(menuChoiceString);
+			boolean isValid = mysqlConnection.validateSubscriber(subid);
+			if (isValid) {
+				this.sendToAllClients("SubscriberValid");
+			} else {
+				this.sendToAllClients("SubscriberInvalid");
+			}
+			flag++;
+			break;
+		case UpdateEmailOrPhone:
+			// value format: "<confirmation_code> <contact>"
+			String contactParts[] = infoFromUser.get(menuChoiceString).split(" ", 2);
+			boolean contactSucc = mysqlConnection.updateEmailOrPhone(contactParts[0], contactParts[1]);
+			if (contactSucc) {
+				this.sendToAllClients("Updated");
+			} else {
+				this.sendToAllClients("Error");
+			}
+			flag++;
+			break;
+				
+		case GetSubscriberInfo:
+			String subscriberID = infoFromUser.get(menuChoiceString);
+			String subscriberInfo = mysqlConnection.getSubscriberInfo(subscriberID);
+			this.sendToAllClients(subscriberInfo);
+			flag++;
+			break;
+		case UpdateSubscriberInfo:
+			// value format: "subscriberID|name|email|phone"
+			String updateData[] = infoFromUser.get(menuChoiceString).split("\\|", 4);
+			if (updateData.length == 4) {
+				boolean updateSucc = mysqlConnection.updateSubscriberInfo(updateData[0], updateData[1], updateData[2], updateData[3]);
+				if (updateSucc) {
+					this.sendToAllClients("Updated");
+				} else {
+					this.sendToAllClients("Error");
+				}
+			} else {
+				this.sendToAllClients("Error");
+			}
+			flag++;
+			break;
+		case GetSubscriberHistory:
+			String subscriberIDForHistory = infoFromUser.get(menuChoiceString);
+			List<String> history = mysqlConnection.getSubscriberHistory(subscriberIDForHistory);
+			this.sendToAllClients(history);
+			flag++;
+			break;
+		case CancelReservation:
+			String confirmationCodeToCancel = infoFromUser.get(menuChoiceString);
+			String cancelResult = mysqlConnection.cancelReservation(confirmationCodeToCancel);
+			this.sendToAllClients(cancelResult);
+			flag++;
+			break;
+		case GetOpeningHours:
+			String date = infoFromUser.get(menuChoiceString);
+			String openingHours = mysqlConnection.getOpeningHours(date);
+			// Send the opening hours or "DEFAULT" if not found
+			this.sendToAllClients(openingHours != null ? openingHours : "DEFAULT");
+			flag++;
+			break;
+
 		//This case is registering a new subscriber in the DB.
 		case RegisterNewSubscriber:
 			try {
@@ -378,6 +498,17 @@ public class EchoServer extends AbstractServer {
 			}
 			flag++;
 			break;
+		case SubInfo:
+			try {
+				System.out.println("Getting subscriber info");
+				List<String> subInfo = mysqlConnection.GetSubInfo();
+				System.out.println("Found " + subInfo.size() + " subscribers");
+				this.sendToAllClients(subInfo);
+			} catch (Exception e) {
+				System.err.println("Exception in SubInfo case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
 		case ReservationChartReport:
 			try {
 				System.out.println("Getting Reservation Chart Report...");
