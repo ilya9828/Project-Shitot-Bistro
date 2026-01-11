@@ -1,5 +1,6 @@
 package Server;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -106,6 +107,211 @@ public class EchoServer extends AbstractServer {
 			this.sendToAllClients(Code);
 			flag++;
 			break;
+		//This case is registering a new subscriber in the DB.
+		case RegisterNewSubscriber:
+			try {
+				String subscriberData = infoFromUser.get(menuChoiceString);
+				String[] parts = subscriberData.split("\\|");
+				if (parts.length == 4) {
+					String fullName = parts[0];
+					String phone = parts[1];
+					String subscriberId = parts[2];
+					String email = parts[3];
+					System.out.println("Registering subscriber: " + fullName + ", Phone: " + phone);
+					String result = mysqlConnection.insertSubscriber(fullName, phone, subscriberId, email);
+					System.out.println("Insert result: " + result);
+					this.sendToAllClients(result);
+				} else {
+					System.err.println("Error: Expected 4 parts, got " + parts.length + ". Data: " + subscriberData);
+					this.sendToAllClients("Error: Invalid data format");
+				}
+			} catch (Exception e) {
+				System.err.println("Exception in RegisterNewSubscriber case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		//This case is editing opening hours in the DB.
+		case EditOpeningHours:
+			try {
+				String openingHoursData = infoFromUser.get(menuChoiceString);
+				// Split on "|" but handle case where durationValue may contain "|"
+				// Format: openingTime|closingTime|durationType|durationValue
+				// For SPECIFIC_DAY, durationValue is "dayOfWeek|date", so we need special handling
+				int firstPipe = openingHoursData.indexOf("|");
+				int secondPipe = openingHoursData.indexOf("|", firstPipe + 1);
+				int thirdPipe = openingHoursData.indexOf("|", secondPipe + 1);
+				
+				if (firstPipe > 0 && secondPipe > firstPipe && thirdPipe > secondPipe) {
+					String openingTime = openingHoursData.substring(0, firstPipe);
+					String closingTime = openingHoursData.substring(firstPipe + 1, secondPipe);
+					String durationType = openingHoursData.substring(secondPipe + 1, thirdPipe);
+					String durationValue = openingHoursData.substring(thirdPipe + 1); // Everything after third pipe
+					
+					System.out.println("Editing opening hours - Time: " + openingTime + "-" + closingTime + ", Type: " + durationType + ", Value: " + durationValue);
+					String result = mysqlConnection.updateOpeningHours(openingTime, closingTime, durationType, durationValue);
+					System.out.println("Update result: " + result);
+					this.sendToAllClients(result);
+				} else {
+					System.err.println("Error: Invalid data format. Data: " + openingHoursData);
+					this.sendToAllClients("Error: Invalid data format");
+				}
+			} catch (Exception e) {
+				System.err.println("Exception in EditOpeningHours case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case AddTable:
+			try {
+				String capacityStr = infoFromUser.get(menuChoiceString);
+				int capacity = Integer.parseInt(capacityStr);
+				System.out.println("Adding new table with capacity: " + capacity);
+				String result = mysqlConnection.insertTable(capacity);
+				System.out.println("Insert result: " + result);
+				this.sendToAllClients(result);
+			} catch (NumberFormatException e) {
+				System.err.println("Error: Invalid capacity format. Data: " + infoFromUser.get(menuChoiceString));
+				this.sendToAllClients("Error: Invalid capacity format");
+			} catch (Exception e) {
+				System.err.println("Exception in AddTable case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case GetNextTableId:
+			try {
+				System.out.println("Getting next table ID");
+				String nextId = mysqlConnection.getNextTableId();
+				System.out.println("Next table ID: " + nextId);
+				this.sendToAllClients(nextId);
+			} catch (Exception e) {
+				System.err.println("Exception in GetNextTableId case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case GetAllTableIds:
+			try {
+				System.out.println("Getting all table IDs");
+				String tableIds = mysqlConnection.getAllTableIds();
+				System.out.println("Table IDs: " + tableIds);
+				this.sendToAllClients(tableIds);
+			} catch (Exception e) {
+				System.err.println("Exception in GetAllTableIds case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case GetTableData:
+			try {
+				String tableId = infoFromUser.get(menuChoiceString);
+				System.out.println("Getting data for table ID: " + tableId);
+				String capacity = mysqlConnection.getTableData(tableId);
+				System.out.println("Table capacity: " + capacity);
+				this.sendToAllClients(capacity);
+			} catch (Exception e) {
+				System.err.println("Exception in GetTableData case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case UpdateTable:
+			try {
+				String updateData = infoFromUser.get(menuChoiceString);
+				// Format: "tableID|capacity"
+				String[] parts = updateData.split("\\|");
+				if (parts.length == 2) {
+					int tableId = Integer.parseInt(parts[0]);
+					int capacity = Integer.parseInt(parts[1]);
+					System.out.println("Updating table " + tableId + " with capacity " + capacity);
+					String result = mysqlConnection.updateTable(tableId, capacity);
+					System.out.println("Update result: " + result);
+					this.sendToAllClients(result);
+				} else {
+					System.err.println("Error: Expected 2 parts, got " + parts.length);
+					this.sendToAllClients("Error: Invalid data format");
+				}
+			} catch (Exception e) {
+				System.err.println("Exception in UpdateTable case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case DeleteTable:
+			try {
+				String tableIdStr = infoFromUser.get(menuChoiceString);
+				int tableId = Integer.parseInt(tableIdStr);
+				System.out.println("Deleting table ID: " + tableId);
+				String result = mysqlConnection.deleteTable(tableId);
+				System.out.println("Delete result: " + result);
+				this.sendToAllClients(result);
+			} catch (Exception e) {
+				System.err.println("Exception in DeleteTable case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Error: " + e.getMessage());
+			}
+			flag++;
+			break;
+		case CurrentCustomers:
+			try {
+				System.out.println("Getting occupied tables");
+				List<String> occupiedTables = mysqlConnection.GetOccupiedTables();
+				System.out.println("Found " + occupiedTables.size() + " occupied tables");
+				this.sendToAllClients(occupiedTables);
+			} catch (Exception e) {
+				System.err.println("Exception in CurrentCustomers case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
+			flag++;
+			break;
+		case GetWaitingList:
+			try {
+				System.out.println("Getting waiting list");
+				List<String> waitingList = mysqlConnection.GetWaitingList();
+				System.out.println("Found " + waitingList.size() + " waiting entries");
+				this.sendToAllClients(waitingList);
+			} catch (Exception e) {
+				System.err.println("Exception in GetWaitingList case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
+			flag++;
+			break;
+		case CurrentReservations:
+			try {
+				System.out.println("Getting current reservations");
+				List<String> currentReservations = mysqlConnection.GetCurrentReservations();
+				System.out.println("Found " + currentReservations.size() + " current reservations");
+				this.sendToAllClients(currentReservations);
+			} catch (Exception e) {
+				System.err.println("Exception in CurrentReservations case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
+			flag++;
+			break;
+		case SubInfo:
+			try {
+				System.out.println("Getting subscriber info");
+				List<String> subInfo = mysqlConnection.GetSubInfo();
+				System.out.println("Found " + subInfo.size() + " subscribers");
+				this.sendToAllClients(subInfo);
+			} catch (Exception e) {
+				System.err.println("Exception in SubInfo case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
+			flag++;
+			break;
 		//This case is loading the requested ID from the DB and sending to the client.
 		case LoadOrders:
 			String RequestedID = mysqlConnection.Load(Integer.parseInt(infoFromUser.get(menuChoiceString)));
@@ -134,6 +340,63 @@ public class EchoServer extends AbstractServer {
 			clientsstatusconnections.put(clientIp, offlineStatuString);
 			tableController.setconnection(popUpString);
 			this.sendToAllClients("Disconnected");
+			flag++;
+			break;
+		case ValidateUserID:
+			try {
+				String userId = infoFromUser.get(menuChoiceString);
+				System.out.println("Validating user ID: " + userId);
+				String userType = mysqlConnection.validateUserID(userId);
+				System.out.println("User type: " + userType);
+				this.sendToAllClients(userType);
+			} catch (Exception e) {
+				System.err.println("Exception in ValidateUserID case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients("Invalid");
+			}
+			flag++;
+			break;
+			
+		case DelayChartReport:
+			try {
+				System.out.println("Getting Delay Chart Report...");
+				String monthsParam = infoFromUser.get(menuChoiceString);
+				List<String> reportData;
+				if (monthsParam != null && !monthsParam.isEmpty()) {
+					// Custom months selected
+					reportData = mysqlConnection.GetDelayChartReport(monthsParam);
+				} else {
+					// Default: previous month
+					reportData = mysqlConnection.GetDelayChartReport();
+				}
+				this.sendToAllClients(reportData);
+				System.out.println("Delay Chart Report sent to client");
+			} catch (Exception e) {
+				System.err.println("Exception in DelayChartReport case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<String>());
+			}
+			flag++;
+			break;
+		case ReservationChartReport:
+			try {
+				System.out.println("Getting Reservation Chart Report...");
+				String monthsParam = infoFromUser.get(menuChoiceString);
+				List<String> reportData;
+				if (monthsParam != null && !monthsParam.isEmpty()) {
+					// Custom months selected
+					reportData = mysqlConnection.GetReservationChartReport(monthsParam);
+				} else {
+					// Default: previous month
+					reportData = mysqlConnection.GetReservationChartReport();
+				}
+				this.sendToAllClients(reportData);
+				System.out.println("Reservation Chart Report sent to client");
+			} catch (Exception e) {
+				System.err.println("Exception in ReservationChartReport case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<String>());
+			}
 			flag++;
 			break;
 		//error with the userselect action.
