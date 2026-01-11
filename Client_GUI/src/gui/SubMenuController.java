@@ -46,7 +46,7 @@ public class SubMenuController extends BaseMenuController {
 
     /**
      * Handles the "Edit Personal Info" button click.
-     * TODO: Implement EditPersonalInfo functionality.
+     * Navigates to the EditPersonalInfo screen.
      */
     @FXML
     private void handleEditPersonalInfo() {
@@ -56,7 +56,7 @@ public class SubMenuController extends BaseMenuController {
 
     /**
      * Handles the "Show History" button click.
-     * TODO: Implement ShowHistory functionality.
+     * Navigates to the ShowHistory screen.
      */
     @FXML
     private void handleShowHistory() {
