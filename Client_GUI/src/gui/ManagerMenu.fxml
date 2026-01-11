@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ManagerMenuController">
+    <padding>
+        <Insets bottom="30" left="40" right="40" top="40" />
+    </padding>
+
+    <top>
+        <VBox alignment="CENTER" spacing="10">
+            <Label text="Manager Menu" style="-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: white;" />
+        </VBox>
+    </top>
+
+    <center>
+        <VBox spacing="20" alignment="CENTER" style="-fx-padding: 20px;">
+            <!-- Manager menu options (same as staff) -->
+            <VBox spacing="15" alignment="CENTER">
+                <Label text="Manager Operations" style="-fx-text-fill: #fbbf24; -fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 0 0 5 0;" />
+                <Button fx:id="subInfoButton" onAction="#handleSubInfo" text="Sub Info" prefWidth="300" />
+                <Button fx:id="currentReservationsButton" onAction="#handleCurrentReservations" text="Current Reservations" prefWidth="300" />
+                <Button fx:id="getWaitingListButton" onAction="#handleGetWaitingList" text="Get Waiting List" prefWidth="300" />
+                <Button fx:id="currentCustomersButton" onAction="#handleCurrentCustomers" text="Current Customers" prefWidth="300" />
+                <Button fx:id="editTableButton" onAction="#handleEditTable" text="Edit Table" prefWidth="300" />
+                <Button fx:id="addTableButton" onAction="#handleAddTable" text="Add Table" prefWidth="300" />
+                <Button fx:id="editOpeningHoursButton" onAction="#handleEditOpeningHours" text="Edit Opening Hours" prefWidth="300" />
+                <Button fx:id="registerNewSubscriberButton" onAction="#handleRegisterNewSubscriber" text="Register New Subscriber" prefWidth="300" />
+            </VBox>
+            
+            <!-- Separator -->
+            <Label text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━" style="-fx-text-fill: rgba(255,255,255,0.3); -fx-font-size: 12px; -fx-padding: 10px 0;" />
+            
+            <!-- Manager-exclusive options -->
+            <VBox spacing="15" alignment="CENTER">
+                <Label text="Manager Analytics" style="-fx-text-fill: #fbbf24; -fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 0 0 5 0;" />
+                <Button fx:id="delayChartReportButton" onAction="#handleDelayChartReport" text="Delay Chart Report" prefWidth="300" />
+                <Button fx:id="reservationChartInfoButton" onAction="#handleReservationChartInfo" text="Reservation Chart Info" prefWidth="300" />
+            </VBox>
+        </VBox>
+    </center>
+
+    <bottom>
+        <VBox alignment="CENTER" spacing="10" style="-fx-padding: 20px 0 0 0;">
+            <Button fx:id="backToLoginButton" onAction="#handleBackToLogin" text="Back to Login" prefWidth="280" styleClass="back-to-login-button" />
+        </VBox>
+    </bottom>
+</BorderPane>
