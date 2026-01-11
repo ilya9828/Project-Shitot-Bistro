@@ -64,6 +64,7 @@ public class mysqlConnection {
 		
 	}
 	
+	
 	/**
 	 * Automatically generates reports for all missing months.
 	 * This method checks from the earliest month with order data up to the previous month,
@@ -1856,6 +1857,2382 @@ public class mysqlConnection {
 		System.out.println("📤 Returning report data. List size: " + reportData.size());
 		return reportData;
 	}
+
+
+	
+	/**
+	 * Cancel reservations that are more than 15 minutes past their reservation time
+	 * and have not been checked in (no visit record exists).
+	 * This method is called periodically by a background thread.
+	 */
+	private static void cancelExpiredReservations() {
+		try {
+			String cancelSql = 
+				"UPDATE orders o " +
+				"SET o.status = 'Cancelled by resturant' " +
+				"WHERE o.order_time_date < DATE_SUB(NOW(), INTERVAL 15 MINUTE) " +
+				"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid', 'CheckedIN')";
+			
+			try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
+				cancelStmt.executeUpdate();
+			}
+		} catch (SQLException e) {
+			System.err.println("[Cancellation Thread] Error cancelling expired reservations: " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			System.err.println("[Cancellation Thread] Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Start a background thread that periodically checks and cancels expired reservations.
+	 * The thread runs every 30 seconds to check for reservations that are more than 15 minutes
+	 * past their reservation time and have not been checked in.
+	 */
+	private static void startExpiredReservationCancellationThread() {
+		Thread cancellationThread = new Thread(() -> {
+			while (true) {
+				try {
+					Thread.sleep(30000);
+					if (conn != null && !conn.isClosed()) {
+						cancelExpiredReservations();
+					}
+				} catch (InterruptedException e) {
+					break;
+				} catch (SQLException e) {
+					System.err.println("[Cancellation Thread] Database connection error: " + e.getMessage());
+					e.printStackTrace();
+				} catch (Exception e) {
+					System.err.println("[Cancellation Thread] Unexpected error: " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+		});
+		
+		cancellationThread.setDaemon(true);
+		cancellationThread.setName("ExpiredReservationCancellation");
+		cancellationThread.start();
+	}
+	
+	/**
+	 * Process waiting list entries - check if there's available capacity and automatically check-in customers.
+	 * This method is called periodically by a background thread.
+	 * Priority: P_WAITING (high priority) first, then WAITING (low priority).
+	 */
+	private static void processWaitingList() {
+		try {
+			// Get all waiting list entries sorted by priority (P_WAITING first, then WAITING), then by created_at (FIFO)
+			String getWaitingListSql = 
+				"SELECT confirmation_code, number_of_guests, phone, email, status " +
+				"FROM waitingentry " +
+				"WHERE status IN ('P_WAITING', 'WAITING') " +
+				"ORDER BY " +
+				"  CASE status " +
+				"    WHEN 'P_WAITING' THEN 1 " +
+				"    WHEN 'WAITING' THEN 2 " +
+				"  END ASC, " +
+				"  created_at ASC";
+			
+			List<WaitingListEntry> waitingEntries = new ArrayList<>();
+			try (PreparedStatement stmt = conn.prepareStatement(getWaitingListSql)) {
+				try (ResultSet rs = stmt.executeQuery()) {
+					while (rs.next()) {
+						WaitingListEntry entry = new WaitingListEntry();
+						entry.confirmationCode = rs.getString("confirmation_code");
+						entry.numberOfGuests = rs.getInt("number_of_guests");
+						entry.phone = rs.getString("phone");
+						entry.email = rs.getString("email");
+						entry.status = rs.getString("status");
+						waitingEntries.add(entry);
+					}
+				}
+			}
+			
+			if (waitingEntries.isEmpty()) {
+				return; // No one waiting
+			}
+			
+			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+			
+			// Process each waiting entry
+			for (WaitingListEntry entry : waitingEntries) {
+				boolean hasCapacity = checkCapacityAtTimeByGuests(currentTime, entry.numberOfGuests);
+				
+				if (hasCapacity) {
+					String tableQuery =
+						"SELECT tableID, capacity " +
+						"FROM tables " +
+						"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+						"ORDER BY capacity ASC " +
+						"LIMIT 1";
+					
+					Integer tableId = null;
+					
+					try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
+						tableStmt.setInt(1, entry.numberOfGuests);
+						try (ResultSet rs = tableStmt.executeQuery()) {
+							if (rs.next()) {
+								tableId = rs.getInt("tableID");
+							}
+						}
+					}
+					
+					if (tableId != null) {
+						try {
+							String orderNumber = entry.confirmationCode;
+							
+							conn.setAutoCommit(false);
+							try {
+								Integer subscriberId = null;
+								String name = null;
+								boolean isSubscriber = false;
+								
+								if (entry.phone != null || entry.email != null) {
+									String subCheckSql = "SELECT subscriberID, name FROM subscriber WHERE phone = ? OR email = ?";
+									try (PreparedStatement subCheckStmt = conn.prepareStatement(subCheckSql)) {
+										subCheckStmt.setString(1, entry.phone);
+										subCheckStmt.setString(2, entry.email);
+										try (ResultSet subRs = subCheckStmt.executeQuery()) {
+											if (subRs.next()) {
+												subscriberId = subRs.getInt("subscriberID");
+												name = subRs.getString("name");
+												isSubscriber = true;
+											}
+										}
+									}
+								}
+								
+								String insertOrderSql =
+									"INSERT INTO orders " +
+									"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+									"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+									"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+								
+								try (PreparedStatement orderStmt = conn.prepareStatement(insertOrderSql)) {
+									orderStmt.setObject(1, subscriberId, java.sql.Types.INTEGER);
+									orderStmt.setInt(2, entry.numberOfGuests);
+									orderStmt.setString(3, entry.confirmationCode);
+									orderStmt.setString(4, orderNumber);
+									orderStmt.setTimestamp(5, currentTime);
+									orderStmt.setTimestamp(6, currentTime);
+									orderStmt.setString(7, "PENDING");
+									orderStmt.setBoolean(8, isSubscriber);
+									orderStmt.setString(9, entry.email);
+									orderStmt.setString(10, entry.phone);
+									orderStmt.setString(11, name);
+									orderStmt.executeUpdate();
+								}
+								
+								String updateOrderSql = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
+								try (PreparedStatement updateOrder = conn.prepareStatement(updateOrderSql)) {
+									updateOrder.setString(1, "CheckedIN");
+									updateOrder.setString(2, entry.confirmationCode);
+									updateOrder.executeUpdate();
+								}
+								
+								String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = ? WHERE tableID = ?";
+								try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
+									updateTable.setString(1, "OCCUPIED");
+									updateTable.setString(2, entry.confirmationCode);
+									updateTable.setInt(3, tableId);
+									updateTable.executeUpdate();
+								}
+								
+								String insertVisitSql =
+									"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
+									"VALUES (?, ?, ?, NOW(), ?)";
+								try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
+									insertVisit.setString(1, orderNumber);
+									insertVisit.setString(2, entry.confirmationCode);
+									insertVisit.setInt(3, tableId);
+									
+									Integer subId = null;
+									if (entry.phone != null || entry.email != null) {
+										String subCheckSql = "SELECT subscriberID FROM subscriber WHERE phone = ? OR email = ?";
+										try (PreparedStatement subCheckStmt = conn.prepareStatement(subCheckSql)) {
+											subCheckStmt.setString(1, entry.phone);
+											subCheckStmt.setString(2, entry.email);
+											try (ResultSet subRs = subCheckStmt.executeQuery()) {
+												if (subRs.next()) {
+													subId = subRs.getInt("subscriberID");
+												}
+											}
+										}
+									}
+									
+									if (subId != null) {
+										insertVisit.setInt(4, subId);
+									} else {
+										insertVisit.setNull(4, java.sql.Types.INTEGER);
+									}
+									
+									insertVisit.executeUpdate();
+								}
+								
+								String updateWaitingSql = "UPDATE waitingentry SET status = 'SEATED' WHERE confirmation_code = ?";
+								try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
+									updateWaiting.setString(1, entry.confirmationCode);
+									updateWaiting.executeUpdate();
+								}
+								
+								conn.commit();
+								conn.setAutoCommit(true);
+								
+								String customerName = name != null ? name : (entry.email != null ? entry.email : entry.phone);
+								System.out.println("[Waiting List Processor] SMS sent to customer: " + customerName + 
+								                   " - Table " + tableId + " is ready!");
+								
+							} catch (SQLException e) {
+								conn.rollback();
+								conn.setAutoCommit(true);
+								System.err.println("[Waiting List Processor] Error processing waiting list entry " + entry.confirmationCode + ": " + e.getMessage());
+								e.printStackTrace();
+							}
+						} catch (Exception e) {
+							System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("[Waiting List Processor] Error processing waiting list: " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			System.err.println("[Waiting List Processor] Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Helper class to hold waiting list entry data
+	 */
+	private static class WaitingListEntry {
+		String confirmationCode;
+		int numberOfGuests;
+		String phone;
+		String email;
+		String status;
+	}
+	
+	/**
+	 * Start a background thread that periodically processes the waiting list.
+	 * The thread runs every 30 seconds to check if there's available capacity
+	 * and automatically check-in customers from the waiting list.
+	 */
+	private static void startWaitingListProcessingThread() {
+		Thread waitingListThread = new Thread(() -> {
+			while (true) {
+				try {
+					Thread.sleep(3000);
+					if (conn != null && !conn.isClosed()) {
+						processWaitingList();
+					}
+				} catch (InterruptedException e) {
+					break;
+				} catch (SQLException e) {
+					System.err.println("[Waiting List Processor] Database connection error: " + e.getMessage());
+					e.printStackTrace();
+				} catch (Exception e) {
+					System.err.println("[Waiting List Processor] Unexpected error: " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+		});
+		
+		waitingListThread.setDaemon(true);
+		waitingListThread.setName("WaitingListProcessor");
+		waitingListThread.start();
+	}
+	
+	/**
+	 * Send reminder notifications (SMS and Email) to customers 2 hours before their reservation time.
+	 * This method is called periodically by a background thread.
+	 */
+	private static void sendReminderNotifications() {
+		try {
+			String reminderSql = 
+				"SELECT confirmation_code, order_time_date, name, email, phone, number_of_guests " +
+				"FROM orders " +
+				"WHERE order_time_date >= DATE_ADD(NOW(), INTERVAL 2 HOUR) " +
+				"AND order_time_date <= DATE_ADD(DATE_ADD(NOW(), INTERVAL 2 HOUR), INTERVAL 5 MINUTE) " +
+				"AND status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid', 'CheckedIN') " +
+				"AND order_time_date > NOW()";
+			
+			try (PreparedStatement reminderStmt = conn.prepareStatement(reminderSql)) {
+				try (ResultSet rs = reminderStmt.executeQuery()) {
+					while (rs.next()) {
+						String confirmationCode = rs.getString("confirmation_code");
+						Timestamp orderTime = rs.getTimestamp("order_time_date");
+						String name = rs.getString("name");
+						String email = rs.getString("email");
+						String phone = rs.getString("phone");
+						int numberOfGuests = rs.getInt("number_of_guests");
+						
+						String customerName = name != null ? name : (email != null ? email : phone);
+						String customerInfo = customerName + " (Confirmation: " + confirmationCode + ", Guests: " + numberOfGuests + ")";
+						
+						if (phone != null && !phone.trim().isEmpty()) {
+							System.out.println("[Reminder Notification] SMS sent to customer: " + customerInfo + 
+							                   " - Reminder: Your reservation is in 2 hours at " + orderTime);
+						}
+						
+						if (email != null && !email.trim().isEmpty()) {
+							System.out.println("[Reminder Notification] Email sent to customer: " + customerInfo + 
+							                   " - Reminder: Your reservation is in 2 hours at " + orderTime);
+						}
+					}
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("[Reminder Notification Thread] Error sending reminder notifications: " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			System.err.println("[Reminder Notification Thread] Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Start a background thread that periodically sends reminder notifications.
+	 * The thread runs every 30 seconds to check for reservations that need reminders
+	 * (2 hours before reservation time).
+	 */
+	private static void startReminderNotificationThread() {
+		Thread reminderThread = new Thread(() -> {
+			while (true) {
+				try {
+					Thread.sleep(30000);
+					if (conn != null && !conn.isClosed()) {
+						sendReminderNotifications();
+					}
+				} catch (InterruptedException e) {
+					break;
+				} catch (SQLException e) {
+					System.err.println("[Reminder Notification Thread] Database connection error: " + e.getMessage());
+					e.printStackTrace();
+				} catch (Exception e) {
+					System.err.println("[Reminder Notification Thread] Unexpected error: " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+		});
+		
+		reminderThread.setDaemon(true);
+		reminderThread.setName("ReminderNotification");
+		reminderThread.start();
+	}
+
+	/**
+	 * Update number of guests for a reservation.
+	 * Checks capacity by table size (tables with capacity >= new number of guests) before updating.
+	 * @param confirmation_code The confirmation code of the reservation
+	 * @param num_of_guests The new number of guests
+	 * @return true if updated successfully, false if no capacity or error
+	 */
+	public static boolean updateNumOfGuests(String confirmation_code, int num_of_guests) {
+		// Validate number of guests (must be at least 1)
+		if (num_of_guests < 1) {
+			return false;
+		}
+		
+		// Check if there are any tables with sufficient capacity
+		int tablesWithCapacity = 0;
+		try (PreparedStatement checkTablesStmt = conn.prepareStatement(
+				"SELECT COUNT(*) FROM tables WHERE capacity >= ?")) {
+			checkTablesStmt.setInt(1, num_of_guests);
+			try (ResultSet rs = checkTablesStmt.executeQuery()) {
+				if (rs.next()) {
+					tablesWithCapacity = rs.getInt(1);
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("Error checking table capacity: " + e.getMessage());
+			return false;
+		}
+		
+		if (tablesWithCapacity == 0) {
+			return false;
+		}
+		
+		try {
+			// First, get the current order time to check capacity
+			Timestamp orderTime = null;
+			try (PreparedStatement getOrderStmt = conn.prepareStatement(
+					"SELECT order_time_date FROM orders WHERE confirmation_code = ?")) {
+				getOrderStmt.setString(1, confirmation_code);
+				try (ResultSet rs = getOrderStmt.executeQuery()) {
+					if (rs.next()) {
+						orderTime = rs.getTimestamp("order_time_date");
+					} else {
+						// Order not found
+						System.err.println("Error updating number of guests: Order not found");
+						return false;
+					}
+				}
+			}
+			
+			// Check capacity at the reservation time (excluding the current reservation being updated) by new number of guests
+			boolean hasCapacity = checkCapacityAtTimeExcludingOrderByGuests(orderTime, confirmation_code, num_of_guests);
+			
+			if (!hasCapacity) {
+				return false;
+			}
+			
+			// Update the number of guests
+			try (PreparedStatement stmt = conn.prepareStatement(
+					"UPDATE Orders SET number_of_guests = ? WHERE confirmation_code = ?")) {
+				stmt.setInt(1, num_of_guests);
+				stmt.setString(2, confirmation_code);
+				int rowsAffected = stmt.executeUpdate();
+				return rowsAffected > 0; // Return true only if at least one row was updated
+			}
+		} catch (SQLException e) {
+			System.err.println("Error updating number of guests: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+	
+
+	/**
+	 * Check if there's capacity for a reservation at a specific time, excluding a specific order.
+	 * Logic:Each reservation  occupies one full table.
+	 * Each reservation lasts 2 hours. Count how many reservations overlap in time with the requested time
+	 * (excluding the one being updated). If count < total number of tables, approve. Otherwise, reject.
+	 * @param requestedDateTime The requested reservation time
+	 * @param excludeConfirmationCode The confirmation code of the order to exclude from the count
+	 * @param numberOfGuests Number of guests 
+	 * @return true if there's capacity, false otherwise
+	 */
+	private static boolean checkCapacityAtTimeExcludingOrderByGuests(Timestamp requestedDateTime, String excludeConfirmationCode, int numberOfGuests) {
+		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
+		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
+
+		try {
+			// Get all tables sorted by capacity (ascending) - we'll try to assign smallest suitable table first
+			List<Integer> allTables = new ArrayList<>();
+			List<Integer> tableCapacities = new ArrayList<>();
+			try (PreparedStatement tablesStmt = conn.prepareStatement(
+					"SELECT tableID, capacity FROM tables ORDER BY capacity ASC")) {
+				try (ResultSet rs = tablesStmt.executeQuery()) {
+					while (rs.next()) {
+						allTables.add(rs.getInt("tableID"));
+						tableCapacities.add(rs.getInt("capacity"));
+					}
+				}
+			}
+			
+			if (allTables.isEmpty()) {
+				return false; // No tables available
+			}
+			
+			// Get all overlapping reservations with their number_of_guests (excluding the one being updated)
+			// A reservation overlaps if: it starts before the requested reservation ends AND it ends after the requested reservation starts
+			String getReservationsSql =
+					"SELECT number_of_guests " +
+					"FROM orders o " +
+					"WHERE o.order_time_date < ? " +
+					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
+					"AND o.confirmation_code != ? " +
+					"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid') " +
+					"ORDER BY number_of_guests DESC";
+			
+			List<Integer> overlappingReservations = new ArrayList<>();
+			try (PreparedStatement resStmt = conn.prepareStatement(getReservationsSql)) {
+				resStmt.setTimestamp(1, reservationEnd);
+				resStmt.setTimestamp(2, requestedDateTime);
+				resStmt.setString(3, excludeConfirmationCode);
+				try (ResultSet rs = resStmt.executeQuery()) {
+					while (rs.next()) {
+						overlappingReservations.add(rs.getInt("number_of_guests"));
+					}
+				}
+			}
+			
+			// Simulate table assignment using greedy algorithm:
+			// Assign each reservation (including the updated one) to the smallest table that can accommodate it
+			// Sort reservations by number of guests (descending) to assign larger groups first
+			List<Integer> reservationsToAssign = new ArrayList<>(overlappingReservations);
+			reservationsToAssign.add(numberOfGuests); // Add the updated reservation
+			reservationsToAssign.sort((a, b) -> Integer.compare(b, a)); // Sort descending
+			
+			// Track which tables are already assigned
+			boolean[] tablesAssigned = new boolean[allTables.size()];
+			
+			// Try to assign each reservation
+			for (int guests : reservationsToAssign) {
+				boolean assigned = false;
+				// Find the smallest unassigned table that can accommodate this reservation
+				for (int i = 0; i < allTables.size(); i++) {
+					if (!tablesAssigned[i] && tableCapacities.get(i) >= guests) {
+						tablesAssigned[i] = true;
+						assigned = true;
+						break;
+					}
+				}
+				if (!assigned) {
+					// Cannot assign this reservation - no capacity
+					return false;
+				}
+			}
+			
+			// All reservations (including the updated one) can be assigned
+			return true;
+		} catch (SQLException e) {
+			System.err.println("Error during capacity check (excluding order by guests): " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+	
+	/**
+	 * This method is getting information to change in the DB 
+	 * Added capacity check before updating - same logic as insertReservation
+	 * @param confirmation_code	- confirmation code to identify the reservation
+	 * @param new_date	- new date to change
+	 * @return "Updated" if success, "NO_CAPACITY" if no capacity, "Error" if error
+	 */
+	public static String updateOrderDate(String confirmation_code, Timestamp new_date) {
+		// Get the current order_time_date and number_of_guests to check if it's the same as new_date and check capacity
+		Timestamp currentDate = null;
+		int numberOfGuests = 0;
+		try (PreparedStatement stmt = conn.prepareStatement(
+				"SELECT order_time_date, number_of_guests FROM orders WHERE confirmation_code = ?")) {
+			stmt.setString(1, confirmation_code);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					currentDate = rs.getTimestamp("order_time_date");
+					numberOfGuests = rs.getInt("number_of_guests");
+				} else {
+					// Order not found
+					return "Error";
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("Error fetching current order date: " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+		
+		// If the date is the same, no need to check capacity (it's already there)
+		if (currentDate != null && currentDate.equals(new_date)) {
+			// Still need to update (even though it's the same) to return success
+		} else {
+			// Check capacity at the new time (excluding the current reservation being updated) by number of guests
+			boolean hasCapacity = checkCapacityAtTimeExcludingOrderByGuests(new_date, confirmation_code, numberOfGuests);
+			
+			if (!hasCapacity) {
+				// Find alternative times
+				String altTimes = findAlternativeTimes(new_date, numberOfGuests);
+				if (!altTimes.isEmpty()) {
+					return "NO_CAPACITY:" + altTimes;
+				}
+				return "NO_CAPACITY:NO_ALT_TIMES";
+			}
+		}
+		
+		try (PreparedStatement stmt = conn.prepareStatement(
+				"UPDATE Orders SET order_time_date = ? WHERE confirmation_code = ?"
+			)) {
+			stmt.setTimestamp(1, new_date); 
+			stmt.setString(2, confirmation_code);
+			int rowsAffected = stmt.executeUpdate();
+			if (rowsAffected > 0) {
+				return "Updated";
+			} else {
+				return "Error";
+			}
+		} catch (SQLException e) {
+			System.err.println("Error updating order date: " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+	
+	public static String CheckIn(String confirmationCode) {
+		try {
+			String orderQuery = "SELECT order_number, number_of_guests, email, phone, order_time_date, subscriber_id, status " +
+			                    "FROM orders WHERE confirmation_code = ?";
+			String orderNumber = null;
+			int guests = 0;
+			String email = null;
+			String phone = null;
+			Timestamp orderDateTime = null;
+			Integer subscriberId = null;
+			boolean isFromWaitingList = false;
+
+			try (PreparedStatement orderStmt = conn.prepareStatement(orderQuery)) {
+				orderStmt.setString(1, confirmationCode);
+
+				try (ResultSet rs = orderStmt.executeQuery()) {
+					if (rs.next()) {
+						// Found in orders table - check if status is PENDING
+						String status = rs.getString("status");
+						if (status == null || !status.equalsIgnoreCase("PENDING")) {
+							return "CheckInFailed:Reservation status is not PENDING. Current status: " + (status != null ? status : "unknown");
+						}
+						
+						orderNumber = rs.getString("order_number");
+						guests = rs.getInt("number_of_guests");
+						email = rs.getString("email");
+						phone = rs.getString("phone");
+						orderDateTime = rs.getTimestamp("order_time_date");
+						Object subIdObj = rs.getObject("subscriber_id");
+						if (subIdObj != null) {
+							subscriberId = rs.getInt("subscriber_id");
+						}
+			} else {
+						String waitingQuery = "SELECT number_of_guests, phone, email " +
+						                      "FROM waitingentry WHERE confirmation_code = ? AND status IN ('WAITING', 'P_WAITING')";
+						try (PreparedStatement waitingStmt = conn.prepareStatement(waitingQuery)) {
+							waitingStmt.setString(1, confirmationCode);
+							try (ResultSet waitingRs = waitingStmt.executeQuery()) {
+								if (waitingRs.next()) {
+									// Found in waitingentry
+									isFromWaitingList = true;
+									orderNumber = null; // No order_number for waiting list entries
+									guests = waitingRs.getInt("number_of_guests");
+									email = waitingRs.getString("email");
+									phone = waitingRs.getString("phone");
+									orderDateTime = null; // No reservation time for waiting list
+								} else {
+									return "CheckInFailed:OrderNotFound";
+								}
+							}
+						}
+					}
+				}
+			}
+
+			String tableQuery =
+				"SELECT tableID, capacity " +
+				"FROM tables " +
+				"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+				"ORDER BY capacity ASC " +
+				"LIMIT 1";
+
+			Integer tableId = null;
+
+			try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
+				tableStmt.setInt(1, guests);
+				try (ResultSet rs = tableStmt.executeQuery()) {
+					if (rs.next()) {
+						tableId = rs.getInt("tableID");
+					}
+				}
+			}
+
+			if (tableId == null) {
+				try {
+					String checkWaitingSql = "SELECT waitingID FROM waitingentry WHERE confirmation_code = ? AND status IN ('WAITING', 'P_WAITING')";
+					boolean alreadyInWaitingList = false;
+					try (PreparedStatement checkStmt = conn.prepareStatement(checkWaitingSql)) {
+						checkStmt.setString(1, confirmationCode);
+						try (ResultSet rs = checkStmt.executeQuery()) {
+							if (rs.next()) {
+								alreadyInWaitingList = true;
+							}
+						}
+					}
+					
+					if (!alreadyInWaitingList) {
+						java.time.LocalDate today = java.time.LocalDate.now();
+						String insertWaitingSql = "INSERT INTO waitingentry (number_of_guests, phone, email, date, confirmation_code, status) VALUES (?, ?, ?, ?, ?, ?)";
+						
+						try (PreparedStatement insertStmt = conn.prepareStatement(insertWaitingSql)) {
+							insertStmt.setInt(1, guests);
+							insertStmt.setString(2, phone);
+							insertStmt.setString(3, email);
+							insertStmt.setDate(4, java.sql.Date.valueOf(today));
+							insertStmt.setString(5, confirmationCode);
+							insertStmt.setString(6, "P_WAITING");
+							insertStmt.executeUpdate();
+						}
+					} else {
+						String updateStatusSql = "UPDATE waitingentry SET status = 'P_WAITING' WHERE confirmation_code = ? AND status = 'WAITING'";
+						try (PreparedStatement updateStmt = conn.prepareStatement(updateStatusSql)) {
+							updateStmt.setString(1, confirmationCode);
+							updateStmt.executeUpdate();
+						}
+					}
+					
+					return "NoTableAvailable:AddedToWaitingList";
+				} catch (SQLException e) {
+					System.err.println("Error adding customer to waiting list during check-in: " + e.getMessage());
+					e.printStackTrace();
+					return "NoTableAvailable:Error";
+				}
+			}
+
+			conn.setAutoCommit(false);
+			try {
+				if (isFromWaitingList) {
+					// Update waitingentry status to "SEATED" (or remove from waiting list)
+					String updateWaitingSql = "UPDATE waitingentry SET status = 'SEATED' WHERE confirmation_code = ?";
+					try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
+						updateWaiting.setString(1, confirmationCode);
+						updateWaiting.executeUpdate();
+					}
+				} else {
+					// Update order status to CheckedIN
+					String updateOrderSql = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
+					try (PreparedStatement updateOrder = conn.prepareStatement(updateOrderSql)) {
+						updateOrder.setString(1, "CheckedIN");
+						updateOrder.setString(2, confirmationCode);
+						updateOrder.executeUpdate();
+					}
+				}
+
+				String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = ? WHERE tableID = ?";
+				try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
+					updateTable.setString(1, "OCCUPIED");
+					updateTable.setString(2, confirmationCode);
+					updateTable.setInt(3, tableId);
+					updateTable.executeUpdate();
+				}
+
+				String insertVisitSql =
+					"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
+					"VALUES (?, ?, ?, NOW(), ?)";
+				try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
+					insertVisit.setString(1, orderNumber);
+					insertVisit.setString(2, confirmationCode);
+					insertVisit.setInt(3, tableId);
+					if (!isFromWaitingList && subscriberId != null) {
+						insertVisit.setInt(4, subscriberId);
+					} else {
+						insertVisit.setNull(4, java.sql.Types.INTEGER);
+					}
+					insertVisit.executeUpdate();
+				} catch (SQLException e) {
+					e.printStackTrace();
+					throw e; // Re-throw to trigger rollback
+				}
+
+				conn.commit();
+				conn.setAutoCommit(true);
+
+				String msg = "Your table is ready. Table: " + tableId;
+				System.out.println(msg + " (email=" + email + ", phone=" + phone + ")");
+
+				return "CheckInSuccess:TABLE=" + tableId;
+
+			} catch (SQLException e) {
+				conn.rollback();
+				conn.setAutoCommit(true);
+				System.err.println("Error during check-in transaction: " + e.getMessage());
+				e.printStackTrace();
+				return "CheckInFailed:ServerError";
+			}
+
+		} catch (SQLException e) {
+			System.err.println("Error during check-in: " + e.getMessage());
+			e.printStackTrace();
+			return "CheckInFailed:ServerError";
+		}
+	}
+	
+
+
+	public static String LostCode(String emailOrPhone) {
+	    PreparedStatement stmt = null;
+	    ResultSet rs = null;
+
+	    try {
+	        String query =
+	            "SELECT confirmation_code, status, email, phone, name " +
+	            "FROM orders " +
+	            "WHERE (email = ? OR phone = ?) " +
+	            "AND DATE(order_time_date) = CURRENT_DATE " +
+	            "AND status = 'PENDING' " +
+	            "ORDER BY order_time_date DESC " +
+	            "LIMIT 1";
+
+	        stmt = conn.prepareStatement(query);
+	        stmt.setString(1, emailOrPhone);
+	        stmt.setString(2, emailOrPhone);
+
+	        rs = stmt.executeQuery();
+
+	        if (rs.next()) {
+	            String code = rs.getString("confirmation_code");
+	            String email = rs.getString("email");
+	            String phone = rs.getString("phone");
+	            String name = rs.getString("name");
+	            
+	            String customerInfo = name != null ? name : (email != null ? email : phone);
+	            
+	            if (phone != null && !phone.trim().isEmpty()) {
+	                System.out.println("[Lost Code] SMS sent to customer: " + customerInfo + 
+	                                   " (Phone: " + phone + ") - Confirmation code: " + code);
+	            }
+	            
+	            if (email != null && !email.trim().isEmpty()) {
+	                System.out.println("[Lost Code] Email sent to customer: " + customerInfo + 
+	                                   " (Email: " + email + ") - Confirmation code: " + code);
+	            }
+	            
+	            return "CodeSent";
+	        } else {
+	            return "LostOrderFailed";
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return "ServerError";
+	    } finally {
+	        try {
+	            if (rs != null) rs.close();
+	            if (stmt != null) stmt.close();
+	        } catch (SQLException e) {
+	            e.printStackTrace();
+	        }
+	    }
+	}
+
+	/**
+	 * Inserts a waiting list entry for a subscriber.
+	 * Uses subscriberID to fetch phone/email from subscriber table.
+	 * First checks if restaurant has available capacity in the next 2 hours.
+	 * If restaurant is NOT full in the next 2 hours (has capacity), performs automatic check-in:
+	 * creates an order in orders table with current time, updates status to CheckedIN, assigns a table,
+	 * marks table as OCCUPIED, and creates visit record. Returns "TABLE_AVAILABLE:<tableID>".
+	 * If restaurant is full, creates confirmation code and adds to waiting list, returns "WAITING_LIST:<confirmation_code>".
+	 * @return "TABLE_AVAILABLE:<tableID>" if restaurant has capacity (automatic check-in completed), "WAITING_LIST:<confirmation_code>" if added to waiting list, "Error" on failure
+	 */
+	public static String insertWaitingEntryForSubscriber(String subscriberIdStr, int numberOfGuests) {
+		if (subscriberIdStr == null) return "Error";
+		
+		try {
+			int subscriberId = Integer.parseInt(subscriberIdStr);
+			
+			String email = null;
+			String phone = null;
+			String name = null;
+			
+			// Fetch subscriber contact info
+			String subQuery = "SELECT name, email, phone FROM subscriber WHERE subscriberID = ?";
+			try (PreparedStatement subStmt = conn.prepareStatement(subQuery)) {
+				subStmt.setInt(1, subscriberId);
+				try (ResultSet rs = subStmt.executeQuery()) {
+					if (rs.next()) {
+						name = rs.getString("name");
+						email = rs.getString("email");
+						phone = rs.getString("phone");
+					} else {
+						return "Error"; // no such subscriber
+					}
+				}
+			}
+			
+			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+			
+			// Check if restaurant has capacity in the next 2 hours (not full)
+			boolean hasCapacity = checkCapacityAtTimeByGuests(currentTime, numberOfGuests);
+			
+			if (hasCapacity) {
+				// Restaurant is NOT full in the next 2 hours - create order and assign table
+				try {
+					// Generate confirmation code
+					String confirmationCode = generateConfirmationCode();
+					
+					// Generate order number (can be same as confirmation code or different)
+					String orderNumber = confirmationCode;
+					
+					// Find an available table that can accommodate the number of guests
+					String tableQuery =
+						"SELECT tableID, capacity " +
+						"FROM tables " +
+						"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+						"ORDER BY capacity ASC " +
+						"LIMIT 1";
+					
+					Integer tableId = null;
+					
+					try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
+						tableStmt.setInt(1, numberOfGuests);
+						try (ResultSet rs = tableStmt.executeQuery()) {
+							if (rs.next()) {
+								tableId = rs.getInt("tableID");
+							}
+						}
+					}
+					
+					if (tableId != null) {
+						conn.setAutoCommit(false);
+						try {
+							String insertOrderSql =
+								"INSERT INTO orders " +
+								"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+								"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+								"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+							
+							try (PreparedStatement orderStmt = conn.prepareStatement(insertOrderSql)) {
+								orderStmt.setInt(1, subscriberId);
+								orderStmt.setInt(2, numberOfGuests);
+								orderStmt.setString(3, confirmationCode);
+								orderStmt.setString(4, orderNumber);
+								orderStmt.setTimestamp(5, currentTime);
+								orderStmt.setTimestamp(6, currentTime);
+								orderStmt.setString(7, "PENDING");
+								orderStmt.setBoolean(8, true);
+								orderStmt.setString(9, email);
+								orderStmt.setString(10, phone);
+								orderStmt.setString(11, name);
+								orderStmt.executeUpdate();
+							}
+							
+							String updateOrderSql = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
+							try (PreparedStatement updateOrder = conn.prepareStatement(updateOrderSql)) {
+								updateOrder.setString(1, "CheckedIN");
+								updateOrder.setString(2, confirmationCode);
+								updateOrder.executeUpdate();
+							}
+							
+							String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = ? WHERE tableID = ?";
+							try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
+								updateTable.setString(1, "OCCUPIED");
+								updateTable.setString(2, confirmationCode);
+								updateTable.setInt(3, tableId);
+								updateTable.executeUpdate();
+							}
+							
+							String insertVisitSql =
+								"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
+								"VALUES (?, ?, ?, NOW(), ?)";
+							try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
+								insertVisit.setString(1, orderNumber);
+								insertVisit.setString(2, confirmationCode);
+								insertVisit.setInt(3, tableId);
+								insertVisit.setInt(4, subscriberId);
+								insertVisit.executeUpdate();
+							}
+							
+							conn.commit();
+							conn.setAutoCommit(true);
+							
+							return "TABLE_AVAILABLE:" + tableId;
+							
+						} catch (SQLException e) {
+							conn.rollback();
+							conn.setAutoCommit(true);
+							System.err.println("Error performing automatic check-in for subscriber waiting list entry: " + e.getMessage());
+							e.printStackTrace();
+							// Fall through to waiting list
+						}
+					}
+				} catch (SQLException e) {
+					System.err.println("Error processing subscriber waiting list entry with capacity: " + e.getMessage());
+					e.printStackTrace();
+					// If error occurs, fall through to waiting list
+				}
+			}
+			
+			// Restaurant is full in the next 2 hours - generate confirmation code and add to waiting list (customer must wait)
+			System.out.println("Restaurant is full - adding subscriber " + subscriberIdStr + " (" + numberOfGuests + " guests) to waiting list");
+			String confirmationCode = generateConfirmationCode();
+			
+			// Insert into waitingentry for today's date
+			java.time.LocalDate today = java.time.LocalDate.now();
+			String sql = "INSERT INTO waitingentry (number_of_guests, phone, email, date, confirmation_code, status) VALUES (?, ?, ?, ?, ?, ?)";
+			
+			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+				pstmt.setInt(1, numberOfGuests);
+				pstmt.setString(2, phone);
+				pstmt.setString(3, email);
+				pstmt.setDate(4, java.sql.Date.valueOf(today));
+				pstmt.setString(5, confirmationCode);
+				pstmt.setString(6, "WAITING"); // Default status: WAITING (low priority)
+				
+				pstmt.executeUpdate();
+				return "WAITING_LIST:" + confirmationCode;
+			}
+			
+		} catch (NumberFormatException e) {
+			System.err.println("Invalid subscriber ID for waiting list: " + subscriberIdStr);
+			return "Error";
+		} catch (SQLException e) {
+			System.err.println("Error inserting waiting entry for subscriber: " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+
+
+
+
+	/**
+	 * This method is getting order by confirmation code and returning String of its data
+	 * FIX: Changed to use confirmation_code instead of order_number
+	 * @param confirmation_code	- confirmation code
+	 * @return String of this order
+	 *
+	 * Format:
+	 * order_number, order_time_date, number_of_guests, confirmation_code,
+	 * subscriber_id, time_date_of_placing_order, email, phone
+	 */
+	public static String Load(String confirmation_code) {
+		String query = "SELECT * FROM Orders WHERE confirmation_code = ?";
+		String orderData = new String("Empty");
+		try (PreparedStatement stmt = conn.prepareStatement(query)) {
+			stmt.setString(1, confirmation_code);
+			try (ResultSet rs = stmt.executeQuery()) {
+				while (rs.next()) {
+					String order_num1 = rs.getString("order_number");
+					Timestamp date = rs.getTimestamp("order_time_date");
+					int num_guests = rs.getInt("number_of_guests");
+					String con_code = rs.getString("confirmation_code");
+					Integer sub_id = rs.getObject("subscriber_id") != null ? rs.getInt("subscriber_id") : null;
+					Timestamp date_placing_order = rs.getTimestamp("time_date_of_placing_order");
+					String email = rs.getString("email");
+					String phone = rs.getString("phone");
+					String status = rs.getString("status");
+
+					// Create a formatted string with the order information including contact and status
+					orderData = order_num1 + ", " + date + ", " + num_guests + ", " + con_code + ", " +
+					            sub_id + ", " + date_placing_order + ", " + email + ", " + phone + ", " + status;
+					return orderData;
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return orderData;
+
+	}
+
+	/**
+	 * Updates either email or phone (or both) for an order identified by confirmation code.
+	 * If newContact looks like email → updates email and clears phone.
+	 * If numeric phone → updates phone and clears email.
+	 */
+	public static boolean updateEmailOrPhone(String confirmation_code, String newContact) {
+		if (newContact == null || newContact.trim().isEmpty()) {
+			return false;
+		}
+
+		newContact = newContact.trim();
+
+		boolean isEmail = newContact.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+		boolean isPhone = newContact.matches("\\d{8,15}");
+
+		String sql;
+
+		if (isEmail) {
+			sql = "UPDATE Orders SET email = ?, phone = NULL WHERE confirmation_code = ?";
+		} else if (isPhone) {
+			sql = "UPDATE Orders SET phone = ?, email = NULL WHERE confirmation_code = ?";
+		} else {
+			// Invalid format
+			return false;
+		}
+
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			stmt.setString(1, newContact);
+			stmt.setString(2, confirmation_code);
+
+			int rowsAffected = stmt.executeUpdate();
+			return rowsAffected > 0;
+		} catch (SQLException e) {
+			System.err.println("Error updating email/phone: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	/**
+	 * Gets subscriber visit history by subscriber ID.
+	 * Returns list of visit records with created_at, startTime, confirmation_code, number_of_guests, and finalAmount from bill.
+	 * @param subscriberID The subscriber ID
+	 * @return List<String> where each string is in format "created_at|startTime|confirmation_code|number_of_guests|finalAmount"
+	 */
+	public static List<String> getSubscriberHistory(String subscriberID) {
+		List<String> history = new ArrayList<>();
+		
+		if (subscriberID == null || subscriberID.trim().isEmpty()) {
+			return history;
+		}
+
+		try {
+			int subId = Integer.parseInt(subscriberID.trim());
+			// Query visit table joined with orders table to get number_of_guests and bill table to get finalAmount
+			String sql = 
+				"SELECT v.created_at, v.startTime, v.confirmation_code, " +
+				"COALESCE(o.number_of_guests, NULL) as number_of_guests, " +
+				"COALESCE(b.finalAmount, NULL) as finalAmount " +
+				"FROM visit v " +
+				"LEFT JOIN orders o ON v.confirmation_code = o.confirmation_code " +
+				"LEFT JOIN bill b ON v.confirmation_code = b.confirmation_code " +
+				"WHERE v.subId = ? " +
+				"ORDER BY v.created_at DESC";
+			
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.setInt(1, subId);
+				try (ResultSet rs = stmt.executeQuery()) {
+					while (rs.next()) {
+						String createdAt = rs.getTimestamp("created_at") != null ? 
+							rs.getTimestamp("created_at").toString() : "";
+						String startTime = rs.getTimestamp("startTime") != null ? 
+							rs.getTimestamp("startTime").toString() : "";
+						String confirmationCode = rs.getString("confirmation_code");
+						confirmationCode = confirmationCode != null ? confirmationCode : "";
+						
+						// Get number_of_guests - can be NULL if no order exists
+						Integer numberOfGuests = rs.getObject("number_of_guests") != null ? 
+							rs.getInt("number_of_guests") : null;
+						String guestsStr = numberOfGuests != null ? numberOfGuests.toString() : "";
+						
+						// Get finalAmount - can be NULL if no bill exists
+						java.math.BigDecimal finalAmount = rs.getBigDecimal("finalAmount");
+						String amountStr = finalAmount != null ? finalAmount.toString() : "";
+						
+						// Format: "created_at|startTime|confirmation_code|number_of_guests|finalAmount"
+						String record = createdAt + "|" + startTime + "|" + confirmationCode + "|" + guestsStr + "|" + amountStr;
+						history.add(record);
+					}
+				}
+			}
+		} catch (NumberFormatException e) {
+			System.err.println("Invalid subscriber ID format: " + subscriberID);
+		} catch (SQLException e) {
+			System.err.println("Error getting subscriber history: " + e.getMessage());
+			e.printStackTrace();
+		}
+		
+		return history;
+	}
+
+	/**
+	 * Gets subscriber information (name, email, phone) by subscriber ID.
+	 * @param subscriberID The subscriber ID
+	 * @return String in format "name|email|phone" or "Error" if not found
+	 */
+	public static String getSubscriberInfo(String subscriberID) {
+		if (subscriberID == null || subscriberID.trim().isEmpty()) {
+			return "Error";
+		}
+
+		try {
+			int subId = Integer.parseInt(subscriberID.trim());
+			String sql = "SELECT name, email, phone FROM subscriber WHERE subscriberID = ?";
+			
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.setInt(1, subId);
+				try (ResultSet rs = stmt.executeQuery()) {
+					if (rs.next()) {
+						String name = rs.getString("name");
+						String email = rs.getString("email");
+						String phone = rs.getString("phone");
+						
+						// Handle null values
+						name = name != null ? name : "";
+						email = email != null ? email : "";
+						phone = phone != null ? phone : "";
+						
+						return name + "|" + email + "|" + phone;
+					} else {
+						return "Error";
+					}
+				}
+			}
+		} catch (NumberFormatException e) {
+			System.err.println("Invalid subscriber ID format: " + subscriberID);
+			return "Error";
+		} catch (SQLException e) {
+			System.err.println("Error getting subscriber info: " + e.getMessage());
+			e.printStackTrace();
+			return "Error";
+		}
+	}
+
+	/**
+	 * Updates subscriber information (name, email, phone) by subscriber ID.
+	 * @param subscriberID The subscriber ID
+	 * @param name The new name
+	 * @param email The new email (can be empty)
+	 * @param phone The new phone (can be empty)
+	 * @return true if successful, false otherwise
+	 */
+	public static boolean updateSubscriberInfo(String subscriberID, String name, String email, String phone) {
+		if (subscriberID == null || subscriberID.trim().isEmpty() || name == null || name.trim().isEmpty()) {
+			return false;
+		}
+
+		try {
+			int subId = Integer.parseInt(subscriberID.trim());
+			String sql = "UPDATE subscriber SET name = ?, email = ?, phone = ? WHERE subscriberID = ?";
+			
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.setString(1, name.trim());
+				// Set email - use null if empty
+				if (email != null && !email.trim().isEmpty()) {
+					stmt.setString(2, email.trim());
+				} else {
+					stmt.setNull(2, java.sql.Types.VARCHAR);
+				}
+				// Set phone - use null if empty
+				if (phone != null && !phone.trim().isEmpty()) {
+					stmt.setString(3, phone.trim());
+				} else {
+					stmt.setNull(3, java.sql.Types.VARCHAR);
+				}
+				stmt.setInt(4, subId);
+
+				int rowsAffected = stmt.executeUpdate();
+				return rowsAffected > 0;
+			}
+		} catch (NumberFormatException e) {
+			System.err.println("Invalid subscriber ID format: " + subscriberID);
+			return false;
+		} catch (SQLException e) {
+			System.err.println("Error updating subscriber info: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	
+	/**
+	 * This method is returning the list of orders from the DB to the client
+	 * @return List of the orders
+	 */
+	public static List<String> GetOrdersTable() {
+		List<String> orders = new ArrayList<>();
+		String query = "SELECT * FROM Orders";
+
+		try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
+			while (rs.next()) {
+				String order_num1 = rs.getString("order_number");
+				Timestamp date = rs.getTimestamp("order_time_date");
+				int num_guests = rs.getInt("number_of_guests");
+				String con_code = rs.getString("confirmation_code");
+				Integer sub_id = rs.getObject("subscriber_id") != null ? rs.getInt("subscriber_id") : null;
+				Timestamp date_placing_order = rs.getTimestamp("time_date_of_placing_order");
+
+				// Create a formatted string with the subscriber's information
+				String orderData = order_num1 + ", " + date + ", " + num_guests + ", " + con_code + ", " + sub_id + ", " + date_placing_order;
+
+				// Add the formatted string to the list
+				orders.add(orderData);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return orders;
+	}
+	
+	
+	/**
+	 * Check if there's capacity for a reservation at a specific time.
+	 * Logic: Check the tables table to find tables with capacity >= numberOfGuests.
+	 * Each reservation occupies one full table (even if number of guests < table capacity).
+	 * Each reservation lasts 2 hours. Count how many reservations overlap in time with the requested time.
+	 * Two reservations overlap if one starts before the other ends, and one ends after the other starts.
+	 * If there are available tables with sufficient capacity, approve. Otherwise, reject.
+	 * @param requestedDateTime The requested reservation time
+	 * @param numberOfGuests Number of guests (must find a table with capacity >= numberOfGuests)
+	 * @return true if there's capacity, false otherwise
+	 */
+	private static boolean checkCapacityAtTimeByGuests(Timestamp requestedDateTime, int numberOfGuests) {
+		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
+		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
+
+		try {
+			// Get all tables sorted by capacity (ascending) - we'll try to assign smallest suitable table first
+			List<Integer> allTables = new ArrayList<>();
+			List<Integer> tableCapacities = new ArrayList<>();
+			try (PreparedStatement tablesStmt = conn.prepareStatement(
+					"SELECT tableID, capacity FROM tables ORDER BY capacity ASC")) {
+				try (ResultSet rs = tablesStmt.executeQuery()) {
+					while (rs.next()) {
+						allTables.add(rs.getInt("tableID"));
+						tableCapacities.add(rs.getInt("capacity"));
+					}
+				}
+			}
+			
+			if (allTables.isEmpty()) {
+				return false; // No tables available
+			}
+			
+			// Get all overlapping reservations with their number_of_guests
+			// A reservation overlaps if: it starts before the requested reservation ends AND it ends after the requested reservation starts
+			String getReservationsSql =
+					"SELECT number_of_guests " +
+					"FROM orders o " +
+					"WHERE o.order_time_date < ? " +
+					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
+					"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid') " +
+					"ORDER BY number_of_guests DESC";
+			
+			List<Integer> overlappingReservations = new ArrayList<>();
+			try (PreparedStatement resStmt = conn.prepareStatement(getReservationsSql)) {
+				resStmt.setTimestamp(1, reservationEnd);
+				resStmt.setTimestamp(2, requestedDateTime);
+				try (ResultSet rs = resStmt.executeQuery()) {
+					while (rs.next()) {
+						overlappingReservations.add(rs.getInt("number_of_guests"));
+					}
+				}
+			}
+			
+			// Simulate table assignment using greedy algorithm:
+			// Assign each reservation (including the new one) to the smallest table that can accommodate it
+			// Sort reservations by number of guests (descending) to assign larger groups first
+			List<Integer> reservationsToAssign = new ArrayList<>(overlappingReservations);
+			reservationsToAssign.add(numberOfGuests); // Add the new reservation
+			reservationsToAssign.sort((a, b) -> Integer.compare(b, a)); // Sort descending
+			
+			// Track which tables are already assigned
+			boolean[] tablesAssigned = new boolean[allTables.size()];
+			
+			// Try to assign each reservation
+			for (int guests : reservationsToAssign) {
+				boolean assigned = false;
+				// Find the smallest unassigned table that can accommodate this reservation
+				for (int i = 0; i < allTables.size(); i++) {
+					if (!tablesAssigned[i] && tableCapacities.get(i) >= guests) {
+						tablesAssigned[i] = true;
+						assigned = true;
+						break;
+					}
+				}
+				if (!assigned) {
+					// Cannot assign this reservation - no capacity
+					return false;
+				}
+			}
+			
+			// All reservations (including the new one) can be assigned
+			return true;
+		} catch (SQLException e) {
+			System.err.println("Error during capacity check by guests: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+	
+	/**
+	 * Calculate how many tables are available at a specific time
+	 * @param checkTime The time to check
+	 * @param reservationStartTimes List of reservation start times
+	 * @param reservationEndTimes List of reservation end times (start + 120 minutes = 2 hours)
+	 * @param visitStartTimes List of visit start times
+	 * @param visitEndTimes List of visit end times
+	 * @param totalTables Total number of tables in restaurant
+	 * @return Number of available tables at checkTime
+	 */
+	private static int calculateAvailableTablesAtTime(Timestamp checkTime, 
+			List<Timestamp> reservationStartTimes, List<Timestamp> reservationEndTimes,
+			List<Timestamp> visitStartTimes, List<Timestamp> visitEndTimes,
+			int totalTables) {
+		
+		int occupied = 0;
+		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
+		Timestamp checkTimeEnd = new Timestamp(checkTime.getTime() + twoHoursMillis);
+		
+		// Count reservations that occupy tables at checkTime
+		// A reservation at checkTime will occupy a table from checkTime to checkTimeEnd
+		// Another reservation overlaps if: its start < checkTimeEnd AND its end > checkTime
+		// BUT: if end == checkTimeEnd exactly, they don't overlap (one ends when the other starts - table can be reused)
+		int reservationOverlaps = 0;
+		for (int i = 0; i < reservationStartTimes.size(); i++) {
+			Timestamp start = reservationStartTimes.get(i);
+			Timestamp end = reservationEndTimes.get(i);
+			
+			// Reservation overlaps with checkTime if: start < checkTimeEnd AND end > checkTime
+			// Special case: If end == checkTime, they DON'T overlap (table freed exactly when new reservation starts)
+			// Special case: If start == checkTime and end == checkTimeEnd, they overlap (same time slot)
+			boolean overlaps = false;
+			
+			if (start.equals(checkTime) && end.equals(checkTimeEnd)) {
+				// Same time slot - overlaps
+				overlaps = true;
+			} else if (end.equals(checkTime)) {
+				// Reservation ends exactly when ours starts - doesn't overlap
+				overlaps = false;
+			} else if (start.before(checkTimeEnd) && end.after(checkTime)) {
+				// Standard overlap check
+				overlaps = true;
+			}
+			
+			if (overlaps) {
+				reservationOverlaps++;
+			}
+		}
+		occupied += reservationOverlaps;
+		
+		// Count visits that occupy tables at checkTime
+		for (int i = 0; i < visitStartTimes.size(); i++) {
+			Timestamp start = visitStartTimes.get(i);
+			Timestamp end = visitEndTimes.get(i);
+			
+			boolean overlaps = start.before(checkTimeEnd) && end.after(checkTime);
+			if (overlaps) {
+				occupied++;
+			}
+		}
+		
+		int available = totalTables - occupied;
+		
+		return available;
+	}
+
+	/**
+	 * Find alternative times for a reservation (before and after requested time)
+	 * Logic: Check capacity at each time using checkCapacityAtTimeByGuests to ensure
+	 * there are enough tables for the specific number of guests
+	 * @param requestedDateTime The requested reservation time
+	 * @param numberOfGuests The number of guests for the reservation
+	 * @return String with alternative times in format: "ALT_TIMES:beforeTime|afterTime" or empty if none found
+	 */
+	private static String findAlternativeTimes(Timestamp requestedDateTime, int numberOfGuests) {
+		try {
+
+			// Find BEFORE time: check when tables are freed (when reservations end)
+			// We need to find the latest time before requested time when we can start a reservation
+			// Logic: Check capacity at each time slot going backwards from requested time
+			// A reservation at checkTime ends at checkTime + 2 hours, so we need to ensure no overlap
+			Timestamp beforeTime = null;
+			
+			long thirtyMinutesMillis = 30L * 60L * 1000L;
+			
+			// Round requested time down to nearest 30 minutes
+			long roundedRequested = (requestedDateTime.getTime() / thirtyMinutesMillis) * thirtyMinutesMillis;
+			
+			for (long checkTimeMillis = roundedRequested - thirtyMinutesMillis; 
+				 checkTimeMillis >= roundedRequested - (4L * 60L * 60L * 1000L); 
+				 checkTimeMillis -= thirtyMinutesMillis) {
+				
+				Timestamp checkTime = new Timestamp(checkTimeMillis);
+				
+				if (!canMakeReservationAtTime(checkTime)) {
+					continue;
+				}
+				
+				boolean hasCapacity = checkCapacityAtTimeByGuests(checkTime, numberOfGuests);
+				
+				if (hasCapacity) {
+					if (beforeTime == null || checkTime.after(beforeTime)) {
+						beforeTime = checkTime;
+					}
+				}
+			}
+
+			// Find AFTER time: check when reservations end (every 30 minutes after requested time)
+			// We check capacity at time slots after the requested time
+			// A reservation ends 2 hours after it starts, so we check at 2-hour intervals
+			Timestamp afterTime = null;
+			
+			// Round requested time to next 30-minute slot
+			long nextSlotMillis = ((roundedRequested / thirtyMinutesMillis) + 1) * thirtyMinutesMillis;
+			Timestamp roundedRequestedNext = new Timestamp(nextSlotMillis);
+			
+			for (int minutesForward = 0; minutesForward <= 240; minutesForward += 30) {
+				long checkTimeMillis = roundedRequestedNext.getTime() + (minutesForward * 60L * 1000L);
+				Timestamp checkTime = new Timestamp(checkTimeMillis);
+				
+				if (!canMakeReservationAtTime(checkTime)) {
+					continue;
+				}
+				
+				boolean hasCapacity = checkCapacityAtTimeByGuests(checkTime, numberOfGuests);
+				
+				if (hasCapacity) {
+					if (afterTime == null || checkTime.before(afterTime)) {
+						afterTime = checkTime;
+					}
+					break;
+				}
+			}
+
+			if (beforeTime != null || afterTime != null) {
+				String beforeStr = beforeTime != null ? beforeTime.toString() : "";
+				String afterStr = afterTime != null ? afterTime.toString() : "";
+				return "ALT_TIMES:" + beforeStr + "|" + afterStr;
+			}
+		} catch (Exception e) {
+			System.err.println("Error finding alternative times: " + e.getMessage());
+			e.printStackTrace();
+		}
+		return "";
+	}
+
+	public static String insertReservation(Reservations reservation) {
+		Timestamp requestedDateTime = Timestamp.valueOf(reservation.getOrderDateTime());
+		Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+		
+		// Check if the requested date/time is in the past
+		if (requestedDateTime.before(currentTime)) {
+			return "INVALID_DATE_TIME:Reservation date and time cannot be in the past.";
+		}
+		
+		int numberOfGuests = reservation.getNumberOfGuests();
+		if (numberOfGuests < 1) {
+			return "INVALID_DATE_TIME:Number of guests must be at least 1.";
+		}
+		
+		// Check if there are any tables with sufficient capacity
+		int tablesWithCapacity = 0;
+		try (PreparedStatement checkTablesStmt = conn.prepareStatement(
+				"SELECT COUNT(*) FROM tables WHERE capacity >= ?")) {
+			checkTablesStmt.setInt(1, numberOfGuests);
+			try (ResultSet rs = checkTablesStmt.executeQuery()) {
+				if (rs.next()) {
+					tablesWithCapacity = rs.getInt(1);
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("Error checking table capacity: " + e.getMessage());
+			return "Error: Could not check table availability.";
+		}
+		
+		if (tablesWithCapacity == 0) {
+			return "INVALID_DATE_TIME:No tables available with sufficient capacity for " + numberOfGuests + " guests.";
+		}
+		
+		boolean hasCapacity = checkCapacityAtTimeByGuests(requestedDateTime, numberOfGuests);
+
+		if (!hasCapacity) {
+			String altTimes = findAlternativeTimes(requestedDateTime, numberOfGuests);
+			if (!altTimes.isEmpty()) {
+				return "NO_CAPACITY:" + altTimes;
+			}
+			return "NO_CAPACITY:NO_ALT_TIMES";
+		}
+
+	    String sql =
+	        "INSERT INTO orders " +
+	        "(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+	        "order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+	        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+	    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	    	
+	    	// If this is a subscriber reservation, fetch subscriber's contact details
+	    	String emailToUse = reservation.getEmail();
+	    	String phoneToUse = reservation.getPhoneNumber();
+	    	String nameToUse = reservation.getName();
+	    	
+	    	if (reservation.isSubscriber() && reservation.getSubscriberId() != null) {
+	    		try (PreparedStatement subStmt = conn.prepareStatement(
+	    				"SELECT name, email, phone FROM subscriber WHERE subscriberID = ?")) {
+	    			subStmt.setInt(1, reservation.getSubscriberId());
+	    			try (ResultSet rs = subStmt.executeQuery()) {
+	    				if (rs.next()) {
+	    					String subName = rs.getString("name");
+	    					String subEmail = rs.getString("email");
+	    					String subPhone = rs.getString("phone");
+	    					
+	    					if (subName != null) nameToUse = subName;
+	    					if (subEmail != null) emailToUse = subEmail;
+	    					if (subPhone != null) phoneToUse = subPhone;
+	    				}
+	    			}
+	    		} catch (SQLException e) {
+	    			System.err.println("Error fetching subscriber info: " + e.getMessage());
+	    			e.printStackTrace();
+	    		}
+	    	}
+
+	        if (reservation.getSubscriberId() == null) {
+	            pstmt.setNull(1, java.sql.Types.INTEGER);
+	        } else {
+	            pstmt.setInt(1, reservation.getSubscriberId());
+	        }
+
+	        pstmt.setInt(2, reservation.getNumberOfGuests());
+	        pstmt.setString(3, reservation.getConfirmationCode());
+	        pstmt.setString(4, reservation.getOrderNumber());
+	        pstmt.setTimestamp(5,Timestamp.valueOf(reservation.getOrderDateTime()));
+	        pstmt.setTimestamp(6,Timestamp.valueOf(reservation.getPlacingOrderDate()));
+
+	        pstmt.setString(7, reservation.getStatus());
+	        pstmt.setBoolean(8, reservation.isSubscriber());
+	        pstmt.setString(9, emailToUse);
+	        pstmt.setString(10, phoneToUse);
+	        pstmt.setString(11, nameToUse);
+
+	        pstmt.executeUpdate();
+	        return "SUCCESS";
+
+	    } catch (SQLException e) {
+	        System.err.println(" Error inserting reservation");
+	        e.printStackTrace();
+	        return "ERROR:" + e.getMessage();
+	    }
+	}
+	
+	/**
+	 * Generate a unique confirmation code (6 characters: letters and numbers, excluding confusing characters)
+	 */
+	private static String generateConfirmationCode() {
+		String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excludes I, O, 0, 1
+		java.util.Random random = new java.util.Random();
+		
+		// Try up to 20 times to generate a unique code
+		for (int attempt = 0; attempt < 20; attempt++) {
+			StringBuilder code = new StringBuilder();
+			for (int i = 0; i < 6; i++) {
+				code.append(chars.charAt(random.nextInt(chars.length())));
+			}
+			
+			// Check if code exists in orders or waitingentry
+			String checkSql = "SELECT COUNT(*) FROM orders WHERE confirmation_code = ? UNION ALL SELECT COUNT(*) FROM waitingentry WHERE confirmation_code = ?";
+			try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+				checkStmt.setString(1, code.toString());
+				checkStmt.setString(2, code.toString());
+				try (ResultSet rs = checkStmt.executeQuery()) {
+					int totalCount = 0;
+					while (rs.next()) {
+						totalCount += rs.getInt(1);
+					}
+					if (totalCount == 0) {
+						// Code is unique
+						return code.toString();
+					}
+				}
+			} catch (SQLException e) {
+				// If check fails, try next attempt
+				System.err.println("Warning: Could not verify confirmation code uniqueness: " + e.getMessage());
+			}
+		}
+		
+		// Fallback: generate a code with timestamp to ensure uniqueness
+		long timestamp = System.currentTimeMillis();
+		String timestampCode = String.valueOf(timestamp % 1000000); // Last 6 digits
+		// Pad with zeros if needed
+		while (timestampCode.length() < 6) {
+			timestampCode = "0" + timestampCode;
+		}
+		return "WT" + timestampCode; // Prefix "WT" for waiting list
+	}
+	
+	/**
+	 * Check if there's an available table right now for a given number of guests
+	 * @param numberOfGuests Number of guests
+	 * @return TableInfo object with tableID if available, null otherwise
+	 */
+	private static class TableInfo {
+		int tableID;
+		TableInfo(int tableID) {
+			this.tableID = tableID;
+		}
+	}
+	
+	/**
+	 * Check capacity based only on orders table (future reservations), not visits (active customers).
+	 * Used for waiting list - we only care about future reservations that will take up tables.
+	 * @param requestedDateTime The time to check capacity at
+	 * @return true if there's capacity based on orders only, false otherwise
+	 */
+	private static boolean checkCapacityAtTimeOrdersOnly(Timestamp requestedDateTime) {
+		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
+		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
+
+		try {
+			// Count total tables
+			int totalTables = 0;
+			try (PreparedStatement countTablesStmt = conn.prepareStatement("SELECT COUNT(*) FROM tables")) {
+				try (ResultSet rs = countTablesStmt.executeQuery()) {
+					if (rs.next()) {
+						totalTables = rs.getInt(1);
+					}
+				}
+			}
+
+			// Count overlapping reservations ONLY (from orders table)
+			// A reservation overlaps if: start < reservationEnd AND end > requestedDateTime
+			// IMPORTANT: Only count future reservations (that haven't ended yet)
+			// A reservation is "future" if: DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) >= NOW()
+			String countReservationsSql =
+					"SELECT COUNT(*) " +
+					"FROM orders o " +
+					"WHERE o.order_time_date < ? " +
+					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
+					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) >= NOW() " +
+					"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid')";
+			int overlappingReservations = 0;
+			try (PreparedStatement countResStmt = conn.prepareStatement(countReservationsSql)) {
+				countResStmt.setTimestamp(1, reservationEnd);
+				countResStmt.setTimestamp(2, requestedDateTime);
+				try (ResultSet rs = countResStmt.executeQuery()) {
+					if (rs.next()) {
+						overlappingReservations = rs.getInt(1);
+					}
+				}
+			}
+
+			// Only count reservations, not visits
+			int tablesNeeded = overlappingReservations + 1; // +1 for the new customer
+			return totalTables > 0 && tablesNeeded <= totalTables;
+		} catch (SQLException e) {
+			System.err.println("Error during capacity check (orders only): " + e.getMessage());
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
+	
+	/**
+	 * Check if restaurant has available capacity right now, considering future reservations.
+	 * Since each customer stays for 2 hours, checks if there's capacity for the entire 2-hour range
+	 * from now until now + 2 hours. This ensures there's room for people who made reservations in advance.
+	 * IMPORTANT: Only checks orders table (future reservations), NOT visits (active customers).
+	 * If restaurant has space for the entire 2-hour range based on reservations, returns an available table. Otherwise returns null.
+	 * @param numberOfGuests Number of guests
+	 * @return TableInfo if restaurant has space, null if restaurant is full
+	 */
+	private static TableInfo findAvailableTableNow(int numberOfGuests) {
+		try {
+			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+			
+			// Get the date part and round current time down to nearest 30-minute slot
+			// Example: 14:15 -> 14:00, 14:35 -> 14:30
+			java.util.Calendar cal = java.util.Calendar.getInstance();
+			cal.setTime(currentTime);
+			int minutes = cal.get(java.util.Calendar.MINUTE);
+			int roundedMinutes = (minutes / 30) * 30; // Round down to nearest 30 minutes
+			cal.set(java.util.Calendar.MINUTE, roundedMinutes);
+			cal.set(java.util.Calendar.SECOND, 0);
+			cal.set(java.util.Calendar.MILLISECOND, 0);
+			
+			// Check capacity at multiple time points in the next 2 hours
+			// Since each reservation lasts 2 hours, we need to check at intervals to ensure
+			// there's capacity throughout the entire 2-hour range
+			// Example: if current time is 14:15 (rounded to 14:00), check: 14:00, 14:30, 15:00, 15:30, 16:00
+			// This ensures there's room for people who made reservations in advance
+			// IMPORTANT: Only check orders table (future reservations), NOT visits (active customers)
+			boolean hasCapacityForAllTimePoints = true;
+			
+			for (int offsetMinutes = 0; offsetMinutes <= 120; offsetMinutes += 30) {
+				java.util.Calendar checkCal = (java.util.Calendar) cal.clone();
+				checkCal.add(java.util.Calendar.MINUTE, offsetMinutes);
+				Timestamp checkTime = new Timestamp(checkCal.getTimeInMillis());
+				
+				// Check capacity at this time point based ONLY on orders (future reservations)
+				boolean hasCapacity = checkCapacityAtTimeOrdersOnly(checkTime);
+				
+				if (!hasCapacity) {
+					// Restaurant doesn't have capacity at this time point for the 2-hour range
+					hasCapacityForAllTimePoints = false;
+					break;
+				}
+			}
+			
+			// If restaurant doesn't have capacity at any of the checked time points, return null (customer must wait)
+			if (!hasCapacityForAllTimePoints) {
+				return null;
+			}
+			
+			// Restaurant has capacity at all checked time points - find an available table right now
+			String tableQuery =
+				"SELECT tableID, capacity " +
+				"FROM tables " +
+				"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+				"ORDER BY capacity ASC " +
+				"LIMIT 1";
+			
+			try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
+				tableStmt.setInt(1, numberOfGuests);
+				try (ResultSet rs = tableStmt.executeQuery()) {
+					if (rs.next()) {
+						return new TableInfo(rs.getInt("tableID"));
+					}
+				}
+			}
+			
+		} catch (Exception e) {
+			System.err.println("Error finding available table: " + e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	/**
+	 * Perform immediate check-in (when table is available right now)
+	 * Creates visit row and marks table as OCCUPIED
+	 * @param tableInfo Table information
+	 * @param numberOfGuests Number of guests
+	 * @return Table ID string
+	 */
+	private static String performImmediateCheckIn(TableInfo tableInfo, int numberOfGuests) throws SQLException {
+		return performImmediateCheckIn(tableInfo, numberOfGuests, null);
+	}
+	
+	private static String performImmediateCheckIn(TableInfo tableInfo, int numberOfGuests, Integer subscriberId) throws SQLException {
+		conn.setAutoCommit(false);
+		try {
+			// Mark table as OCCUPIED (no confirmationCode for immediate walk-in)
+			String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = NULL WHERE tableID = ?";
+			try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
+				updateTable.setString(1, "OCCUPIED");
+				updateTable.setInt(2, tableInfo.tableID);
+				updateTable.executeUpdate();
+			}
+			
+			// Insert visit row (no order_number, no confirmation_code - immediate walk-in)
+			// Include subscriber_id if this is a subscriber check-in
+			String insertVisitSql =
+				"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
+				"VALUES (NULL, NULL, ?, NOW(), ?)";
+			try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
+				insertVisit.setInt(1, tableInfo.tableID);
+				// Set subscriber_id if provided
+				if (subscriberId != null) {
+					insertVisit.setInt(2, subscriberId);
+				} else {
+					insertVisit.setNull(2, java.sql.Types.INTEGER);
+				}
+				insertVisit.executeUpdate();
+			}
+			
+			conn.commit();
+			conn.setAutoCommit(true);
+			
+			System.out.println("Immediate check-in: Table " + tableInfo.tableID + " assigned to " + numberOfGuests + " guests");
+			return String.valueOf(tableInfo.tableID);
+			
+		} catch (SQLException e) {
+			conn.rollback();
+			conn.setAutoCommit(true);
+			throw e;
+		}
+	}
+	
+	/**
+	 * Insert a waiting list entry. First checks if restaurant has available capacity in the next 2 hours.
+	 * If restaurant is NOT full in the next 2 hours (has capacity), performs automatic check-in:
+	 * creates an order in orders table with current time, updates status to CheckedIN, assigns a table,
+	 * marks table as OCCUPIED, and creates visit record. Returns "TABLE_AVAILABLE:<tableID>".
+	 * If restaurant is full, creates confirmation code, adds to waiting list, and returns "WAITING_LIST:<confirmation_code>".
+	 * @param entry WaitingEntry object with guest info
+	 * @return "TABLE_AVAILABLE:<tableID>" if restaurant has capacity (automatic check-in completed), "WAITING_LIST:<confirmation_code>" if restaurant is full (added to waiting list), "Error" on failure
+	 */
+	public static String insertWaitingEntry(WaitingEntry entry) {
+	    try {
+	        Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+	        
+	        // Check if restaurant has capacity in the next 2 hours (not full)
+	        boolean hasCapacity = checkCapacityAtTimeByGuests(currentTime, entry.getNumberOfGuests());
+	        
+	        if (hasCapacity) {
+	        	// Restaurant is NOT full in the next 2 hours - create order, perform check-in, and assign table
+	        	try {
+	        		// Generate confirmation code
+	        		String confirmationCode = generateConfirmationCode();
+	        		
+	        		// Generate order number (can be same as confirmation code or different)
+	        		String orderNumber = confirmationCode;
+	        		
+	        		// Find an available table that can accommodate the number of guests
+	        		String tableQuery =
+	        			"SELECT tableID, capacity " +
+	        			"FROM tables " +
+	        			"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+	        			"ORDER BY capacity ASC " +
+	        			"LIMIT 1";
+	        		
+	        		Integer tableId = null;
+	        		
+	        		try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
+	        			tableStmt.setInt(1, entry.getNumberOfGuests());
+	        			try (ResultSet rs = tableStmt.executeQuery()) {
+	        				if (rs.next()) {
+	        					tableId = rs.getInt("tableID");
+	        				}
+	        			}
+	        		}
+	        		
+	        		if (tableId != null) {
+	        			conn.setAutoCommit(false);
+	        			try {
+	        				String insertOrderSql =
+	        					"INSERT INTO orders " +
+	        					"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+	        					"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+	        					"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	        				
+	        				try (PreparedStatement orderStmt = conn.prepareStatement(insertOrderSql)) {
+	        					orderStmt.setNull(1, java.sql.Types.INTEGER);
+	        					orderStmt.setInt(2, entry.getNumberOfGuests());
+	        					orderStmt.setString(3, confirmationCode);
+	        					orderStmt.setString(4, orderNumber);
+	        					orderStmt.setTimestamp(5, currentTime);
+	        					orderStmt.setTimestamp(6, currentTime);
+	        					orderStmt.setString(7, "PENDING");
+	        					orderStmt.setBoolean(8, false);
+	        					orderStmt.setString(9, entry.getEmail());
+	        					orderStmt.setString(10, entry.getPhone());
+	        					orderStmt.setNull(11, java.sql.Types.VARCHAR);
+	        					orderStmt.executeUpdate();
+	        				}
+	        				
+	        				String updateOrderSql = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
+	        				try (PreparedStatement updateOrder = conn.prepareStatement(updateOrderSql)) {
+	        					updateOrder.setString(1, "CheckedIN");
+	        					updateOrder.setString(2, confirmationCode);
+	        					updateOrder.executeUpdate();
+	        				}
+	        				
+	        				String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = ? WHERE tableID = ?";
+	        				try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
+	        					updateTable.setString(1, "OCCUPIED");
+	        					updateTable.setString(2, confirmationCode);
+	        					updateTable.setInt(3, tableId);
+	        					updateTable.executeUpdate();
+	        				}
+	        				
+	        				String insertVisitSql =
+	        					"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
+	        					"VALUES (?, ?, ?, NOW(), ?)";
+	        				try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
+	        					insertVisit.setString(1, orderNumber);
+	        					insertVisit.setString(2, confirmationCode);
+	        					insertVisit.setInt(3, tableId);
+	        					insertVisit.setNull(4, java.sql.Types.INTEGER);
+	        					insertVisit.executeUpdate();
+	        				}
+	        				
+	        				conn.commit();
+	        				conn.setAutoCommit(true);
+	        				
+	        				return "TABLE_AVAILABLE:" + tableId;
+	        				
+	        			} catch (SQLException e) {
+	        				conn.rollback();
+	        				conn.setAutoCommit(true);
+	        				System.err.println("Error performing automatic check-in for waiting list entry: " + e.getMessage());
+	        				e.printStackTrace();
+	        				// Fall through to waiting list
+	        			}
+	        		}
+	        	} catch (SQLException e) {
+	        		System.err.println("Error processing waiting list entry with capacity: " + e.getMessage());
+	        		e.printStackTrace();
+	        		// If error occurs, fall through to waiting list
+	        	}
+	        }
+	        
+	        // Restaurant is full in the next 2 hours - generate confirmation code and add to waiting list (customer must wait)
+	        String confirmationCode = generateConfirmationCode();
+	        
+	        String sql = "INSERT INTO waitingentry (number_of_guests, phone, email, date, confirmation_code, status) VALUES (?, ?, ?, ?, ?, ?)";
+	        
+	        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	            pstmt.setInt(1, entry.getNumberOfGuests());
+	            pstmt.setString(2, entry.getPhone());
+	            pstmt.setString(3, entry.getEmail());
+	            pstmt.setDate(4, java.sql.Date.valueOf(entry.getDate()));
+	            pstmt.setString(5, confirmationCode);
+	            pstmt.setString(6, "WAITING"); // Default status: WAITING (low priority)
+	            
+	            pstmt.executeUpdate();
+	            return "WAITING_LIST:" + confirmationCode;
+	        }
+	        
+	    } catch (SQLException e) {
+	        System.err.println("Error inserting waiting entry: " + e.getMessage());
+	        System.err.println("SQL State: " + e.getSQLState());
+	        e.printStackTrace();
+	        return "Error";
+	    } catch (Exception e) {
+	        System.err.println("General error inserting waiting entry: " + e.getMessage());
+	        e.printStackTrace();
+	        return "Error";
+	    }
+	}
+	
+	/**
+	 * Removes a waiting list entry by phone or email.
+	 * 
+	 * @param phoneOrEmail The phone number or email to identify the entry
+	 * @return "WaitingListExited" if successful, "WaitingListExitFailed" otherwise
+	 */
+	public static String exitWaitingList(String phoneOrEmail) {
+		try {
+			// Delete entry by matching phone or email (both WAITING and P_WAITING statuses)
+			String sql = "DELETE FROM waitingentry WHERE (phone = ? OR email = ?) AND status IN ('WAITING', 'P_WAITING')";
+			
+			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+				pstmt.setString(1, phoneOrEmail);
+				pstmt.setString(2, phoneOrEmail);
+				
+				int rowsAffected = pstmt.executeUpdate();
+				
+				if (rowsAffected > 0) {
+					return "WaitingListExited";
+				} else {
+					return "WaitingListExitFailed: No waiting entry found with this phone or email";
+				}
+			}
+			
+		} catch (SQLException e) {
+			System.err.println("Error exiting waiting list: " + e.getMessage());
+			e.printStackTrace();
+			return "WaitingListExitFailed: " + e.getMessage();
+		}
+	}
+	
+	/**
+	 * Subscriber exit from waiting list using subscriberID.
+	 * Looks up subscriber's phone/email and reuses exitWaitingList logic.
+	 */
+	public static String exitWaitingListForSubscriber(String subscriberIdStr) {
+		if (subscriberIdStr == null) return "WaitingListExitFailed: subscriberID is null";
+		
+		try {
+			int subscriberId = Integer.parseInt(subscriberIdStr);
+			
+			String email = null;
+			String phone = null;
+			
+			String subQuery = "SELECT email, phone FROM subscriber WHERE subscriberID = ?";
+			PreparedStatement subStmt = null;
+			ResultSet rs = null;
+			try {
+				subStmt = conn.prepareStatement(subQuery);
+				subStmt.setInt(1, subscriberId);
+				rs = subStmt.executeQuery();
+				if (rs.next()) {
+					email = rs.getString("email");
+					phone = rs.getString("phone");
+				} else {
+					return "WaitingListExitFailed: Subscriber not found";
+				}
+			} finally {
+				if (rs != null) try { rs.close(); } catch (SQLException e) { e.printStackTrace(); }
+				if (subStmt != null) try { subStmt.close(); } catch (SQLException e) { e.printStackTrace(); }
+			}
+			
+			// Prefer phone if exists, otherwise email
+			String key = (phone != null && !phone.isEmpty()) ? phone : email;
+			if (key == null || key.isEmpty()) {
+				return "WaitingListExitFailed: Subscriber has no phone or email";
+			}
+			
+			return exitWaitingList(key);
+			
+		} catch (NumberFormatException e) {
+			return "WaitingListExitFailed: invalid subscriberID";
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return "WaitingListExitFailed: " + e.getMessage();
+		}
+	}
+	
+	/**
+	 * Validates if a subscriber ID exists in the subscriber table.
+	 * 
+	 * @param subscriberID The subscriber ID to validate
+	 * @return true if subscriber exists, false otherwise
+	 */
+	public static boolean validateSubscriber(String subscriberID) {
+	    try {
+	        String sql = "SELECT subscriberID FROM subscriber WHERE subscriberID = ?";
+	        
+	        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	            pstmt.setString(1, subscriberID);
+	            
+	            try (ResultSet rs = pstmt.executeQuery()) {
+	                return rs.next(); // Returns true if subscriber exists
+	            }
+	        }
+	    } catch (SQLException e) {
+	        System.err.println("Error validating subscriber: " + e.getMessage());
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
+
+	/**
+	 * Processes a payment (simulated - academic purposes only).
+	 * Updates order status to "paid", adds visit record, and updates reservation.
+	 * 
+	 * @param payment The payment object containing payment details
+	 * @return "PaymentSuccess" if successful, "PaymentFailed" otherwise
+	 */
+	/**
+	 * Processes a payment (simulated - academic purposes only).
+	 * Updates order status to "paid", adds visit record, and updates reservation.
+	 * 
+	 * @param payment The payment object containing payment details
+	 * @return "PaymentSuccess" if successful, "PaymentFailed" otherwise
+	 */
+	public static String processPayment(Payment payment) {
+	    try {
+	        String confirmationCode = payment.getConfirmationCode();
+	        Integer tableId = null;
+	        
+	        // First, verify the order exists
+	        String orderQuery = "SELECT order_number FROM orders WHERE confirmation_code = ?";
+	        try (PreparedStatement orderStmt = conn.prepareStatement(orderQuery)) {
+	            orderStmt.setString(1, confirmationCode);
+	            
+	            try (ResultSet orderRs = orderStmt.executeQuery()) {
+	                if (!orderRs.next()) {
+	                    return "PaymentFailed: Order not found";
+	                }
+	            }
+	        }
+	        
+	        // Get tableID from visit table (where the customer is sitting)
+	        String visitQuery = "SELECT tableID FROM visit WHERE confirmation_code = ? AND endTime IS NULL";
+	        try (PreparedStatement visitSelectStmt = conn.prepareStatement(visitQuery)) {
+	            visitSelectStmt.setString(1, confirmationCode);
+	            try (ResultSet visitRs = visitSelectStmt.executeQuery()) {
+	                if (visitRs.next()) {
+	                    tableId = visitRs.getObject("tableID") != null ? visitRs.getInt("tableID") : null;
+	                }
+	            }
+	        }
+	        
+	        // Start transaction
+	        conn.setAutoCommit(false);
+	        
+	        try {
+	            String updateStatusQuery = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
+	            try (PreparedStatement updateStmt = conn.prepareStatement(updateStatusQuery)) {
+	                updateStmt.setString(1, "paid");
+	                updateStmt.setString(2, confirmationCode);
+	                updateStmt.executeUpdate();
+	            }
+	            
+	            String updateVisitQuery = "UPDATE visit SET endTime = NOW() WHERE confirmation_code = ? AND endTime IS NULL";
+	            try (PreparedStatement visitUpdateStmt = conn.prepareStatement(updateVisitQuery)) {
+	                visitUpdateStmt.setString(1, confirmationCode);
+	                visitUpdateStmt.executeUpdate();
+	            }
+	            
+	            if (tableId != null) {
+	                String updateTableQuery = "UPDATE tables SET tableStatus = 'AVAILABLE', confirmationCode = NULL WHERE tableID = ?";
+	                try (PreparedStatement tableUpdateStmt = conn.prepareStatement(updateTableQuery)) {
+	                    tableUpdateStmt.setInt(1, tableId);
+	                    tableUpdateStmt.executeUpdate();
+	                }
+	            }
+	            
+	            conn.commit();
+	            conn.setAutoCommit(true);
+	            
+	            return "PaymentSuccess";
+	            
+	        } catch (SQLException e) {
+	            conn.rollback();
+	            conn.setAutoCommit(true);
+	            System.err.println("Error processing payment: " + e.getMessage());
+	            e.printStackTrace();
+	            return "PaymentFailed: " + e.getMessage();
+	        }
+	        
+	    } catch (SQLException e) {
+	        System.err.println("Error processing payment: " + e.getMessage());
+	        e.printStackTrace();
+	        return "PaymentFailed: " + e.getMessage();
+	    }
+	}
+
+	/**
+	 * Cancels a reservation by updating its status to "Cancelled by user".
+	 * 
+	 * @param confirmationCode The confirmation code of the reservation to cancel
+	 * @return "Cancelled" if successful, "Error: <message>" otherwise
+	 */
+	public static String cancelReservation(String confirmationCode) {
+		try {
+			// Validate input - prevent accidental mass cancellation
+			if (confirmationCode == null || confirmationCode.trim().isEmpty()) {
+				System.err.println("Error: Cannot cancel reservation - confirmation code is null or empty");
+				return "Error: Confirmation code is required";
+			}
+			
+			// Trim whitespace
+			confirmationCode = confirmationCode.trim();
+			
+			// First, verify the order exists and is not already cancelled or paid
+			String checkSql = "SELECT status FROM orders WHERE confirmation_code = ?";
+			try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+				checkStmt.setString(1, confirmationCode);
+				try (ResultSet rs = checkStmt.executeQuery()) {
+					if (!rs.next()) {
+						return "Error: Reservation not found";
+					}
+					String currentStatus = rs.getString("status");
+					if ("cancelled".equalsIgnoreCase(currentStatus) || 
+					    "Cancelled by user".equalsIgnoreCase(currentStatus) ||
+					    "Cancelled by resturant".equalsIgnoreCase(currentStatus)) {
+						return "Error: Reservation is already cancelled";
+					}
+					if ("paid".equalsIgnoreCase(currentStatus)) {
+						return "Error: Cannot cancel a paid reservation";
+					}
+				}
+			}
+			
+			// Update the status to "Cancelled by user" - using confirmation_code (which should be unique)
+			String updateSql = "UPDATE orders SET status = ? WHERE confirmation_code = ? " +
+			                   "AND status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid')";
+			try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+				updateStmt.setString(1, "Cancelled by user");
+				updateStmt.setString(2, confirmationCode);
+				int rowsAffected = updateStmt.executeUpdate();
+				
+				if (rowsAffected > 0) {
+					System.out.println("Cancelled reservation: " + confirmationCode);
+					return "Cancelled";
+				} else {
+					System.err.println("Warning: No rows affected when cancelling reservation: " + confirmationCode);
+					return "Error: Failed to cancel reservation - reservation may have already been cancelled or paid";
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("Error cancelling reservation: " + e.getMessage());
+			e.printStackTrace();
+			return "Error: " + e.getMessage();
+		}
+	}
+
+	/**
+	 * Get opening hours for a specific date from the opening_hours table.
+	 * @param date The date to check (format: yyyy-MM-dd)
+	 * @return Opening hours string (format: "HH:mm-HH:mm") or null if not found or default hours
+	 */
+	public static String getOpeningHours(String date) {
+		try {
+			String sql = "SELECT opening_time, closing_time FROM opening_hours WHERE specific_date = ?";
+			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+				stmt.setString(1, date);
+				try (ResultSet rs = stmt.executeQuery()) {
+					if (rs.next()) {
+						java.sql.Time openingTime = rs.getTime("opening_time");
+						java.sql.Time closingTime = rs.getTime("closing_time");
+						
+						if (openingTime != null && closingTime != null) {
+							String openingTimeStr = openingTime.toString().substring(0, 5);
+							String closingTimeStr = closingTime.toString().substring(0, 5);
+							return openingTimeStr + "-" + closingTimeStr;
+						}
+					}
+				}
+			}
+			return null;
+		} catch (SQLException e) {
+			System.err.println("Error getting opening hours: " + e.getMessage());
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	/**
+	 * Check if a given time is within the restaurant's opening hours.
+	 * Default hours: 12:00 to 00:00 (midnight, meaning open until end of day)
+	 * If specific hours exist in opening_hours table for that date, use those instead.
+	 * @param time The timestamp to check
+	 * @return true if the time is within opening hours, false otherwise
+	 */
+	private static boolean isWithinOpeningHours(Timestamp time) {
+		try {
+			java.time.LocalDate date = time.toLocalDateTime().toLocalDate();
+			String dateStr = date.toString();
+			
+			String openingHoursStr = getOpeningHours(dateStr);
+			
+			java.time.LocalTime openingTime;
+			java.time.LocalTime closingTime;
+			
+			if (openingHoursStr != null && !openingHoursStr.isEmpty()) {
+				String[] parts = openingHoursStr.split("-");
+				if (parts.length == 2) {
+					openingTime = java.time.LocalTime.parse(parts[0]);
+					closingTime = java.time.LocalTime.parse(parts[1]);
+				} else {
+					openingTime = java.time.LocalTime.of(12, 0);
+					closingTime = java.time.LocalTime.of(0, 0);
+				}
+			} else {
+				openingTime = java.time.LocalTime.of(12, 0);
+				closingTime = java.time.LocalTime.of(0, 0);
+			}
+			
+			java.time.LocalTime timeToCheck = time.toLocalDateTime().toLocalTime();
+			
+			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
+				return !timeToCheck.isBefore(openingTime);
+			} else {
+				return !timeToCheck.isBefore(openingTime) && !timeToCheck.isAfter(closingTime);
+			}
+		} catch (Exception e) {
+			System.err.println("Error checking opening hours: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+	
+	/**
+	 * Check if a reservation can be made at a given time.
+	 * A reservation can be made if:
+	 * 1. The time is within opening hours
+	 * 2. The time + 2 hours (reservation duration) is still within opening hours
+	 * Default: latest reservation time is 22:00 (22:00 + 2 hours = 00:00)
+	 * If specific hours exist in opening_hours table, latest time is closingTime - 2 hours
+	 * @param time The timestamp to check
+	 * @return true if a reservation can be made at this time, false otherwise
+	 */
+	private static boolean canMakeReservationAtTime(Timestamp time) {
+		try {
+			java.time.LocalDate date = time.toLocalDateTime().toLocalDate();
+			String dateStr = date.toString();
+			
+			String openingHoursStr = getOpeningHours(dateStr);
+			
+			java.time.LocalTime openingTime;
+			java.time.LocalTime closingTime;
+			
+			if (openingHoursStr != null && !openingHoursStr.isEmpty()) {
+				String[] parts = openingHoursStr.split("-");
+				if (parts.length == 2) {
+					openingTime = java.time.LocalTime.parse(parts[0]);
+					closingTime = java.time.LocalTime.parse(parts[1]);
+				} else {
+					openingTime = java.time.LocalTime.of(12, 0);
+					closingTime = java.time.LocalTime.of(0, 0);
+				}
+			} else {
+				openingTime = java.time.LocalTime.of(12, 0);
+				closingTime = java.time.LocalTime.of(0, 0);
+			}
+			
+			java.time.LocalTime timeToCheck = time.toLocalDateTime().toLocalTime();
+			
+			java.time.LocalTime latestReservationTime;
+			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
+				latestReservationTime = java.time.LocalTime.of(22, 0);
+			} else {
+				latestReservationTime = closingTime.minusHours(2);
+			}
+			
+			boolean isWithinOpeningHours = false;
+			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
+				isWithinOpeningHours = !timeToCheck.isBefore(openingTime);
+			} else {
+				isWithinOpeningHours = !timeToCheck.isBefore(openingTime) && !timeToCheck.isAfter(closingTime);
+			}
+			
+			return isWithinOpeningHours && !timeToCheck.isAfter(latestReservationTime);
+		} catch (Exception e) {
+			System.err.println("Error checking if reservation can be made: " + e.getMessage());
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+
+
+
+
+
+
 	
 	/**
 	 * Get reservation chart report for the previous month (default).
