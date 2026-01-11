@@ -18,6 +18,7 @@ import javafx.stage.Stage;
  * Contains common functionality for navigation and window management.
  */
 public abstract class BaseMenuController {
+    //
     
     // Common buttons - should be defined in subclasses' FXML
     @FXML
@@ -80,7 +81,6 @@ public abstract class BaseMenuController {
 
     /**
      * Handles the "Exit Waiting List" button click.
-     * FIX: Navigates to ExitWaitingList screen
      */
     @FXML
     protected void handleExitWaitingList() {

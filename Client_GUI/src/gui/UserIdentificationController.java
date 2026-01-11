@@ -37,14 +37,14 @@ public class UserIdentificationController {
 
     /**
      * Handles the "Login as Subscriber" button click.
-     * Validates the SUBID with the server and navigates to Subscriber Menu if valid.
+     * Validates the ID with the server and navigates to the appropriate menu (Subscriber, Staff, or Manager).
      */
     @FXML
     private void handleLoginAsSubscriber() {
-        String subid = subidField.getText();
+        String userId = subidField.getText();
 
-        // Validate that SUBID is not empty
-        if (subid == null || subid.trim().isEmpty()) {
+        // Validate that ID is not empty
+        if (userId == null || userId.trim().isEmpty()) {
             showError("Please enter ID.");
             return;
         }
@@ -54,11 +54,11 @@ public class UserIdentificationController {
         continueAsGuestButton.setDisable(true);
         statusLabel.setText("Validating ID... Please wait...");
 
-        // Send SUBID to server for validation
+        // Send user ID to server for validation
         new Thread(() -> {
             try {
                 HashMap<String, String> loginRequest = new HashMap<>();
-                loginRequest.put("ValidateSubscriber", subid.trim());
+                loginRequest.put("ValidateUserID", userId.trim());
                 
                 ClientUI.chat.accept(loginRequest);
 
@@ -69,21 +69,23 @@ public class UserIdentificationController {
                     String response = ChatClient.fromserverString;
                     ChatClient.ResetServerString();
 
-                    if ("SubscriberValid".equals(response)) {
+                    statusLabel.setText("");
+                    
+                    if ("Subscriber".equals(response)) {
                         // Login successful - navigate to Subscriber Menu
-                        statusLabel.setText("");
-                        UserSessionHelper.setSubscriber(subid.trim());
-                        navigateToSubscriberMenu(subid.trim());
-                    } else if ("SubscriberInvalid".equals(response)) {
-                        // Invalid SUBID - show error
-                        statusLabel.setText("");
-                        showError("Invalid ID. Please check your ID and try again.");
-                        loginButton.setDisable(false);
-                        continueAsGuestButton.setDisable(false);
+                        UserSessionHelper.setSubscriber(userId.trim());
+                        navigateToSubscriberMenu(userId.trim());
+                    } else if ("Staff".equals(response)) {
+                        // Login successful - navigate to Staff Menu
+                        UserSessionHelper.setStaff(userId.trim());
+                        navigateToStaffMenu(userId.trim());
+                    } else if ("Manager".equals(response)) {
+                        // Login successful - navigate to Manager Menu
+                        UserSessionHelper.setManager(userId.trim());
+                        navigateToManagerMenu(userId.trim());
                     } else {
-                        // Error or unknown response
-                        statusLabel.setText("");
-                        showError("Error validating ID. Please try again.");
+                        // Invalid ID or error
+                        showError("Invalid ID. Please check your ID and try again.");
                         loginButton.setDisable(false);
                         continueAsGuestButton.setDisable(false);
                     }
@@ -183,6 +185,102 @@ public class UserIdentificationController {
         } catch (IOException e) {
             showError("Failed to load Guest Menu.");
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Navigates to the Staff Menu screen.
+     * 
+     * @param staffId The validated staff ID
+     */
+    private void navigateToStaffMenu(String staffId) {
+        try {
+            java.net.URL fxmlUrl = getClass().getResource("/gui/StaffMenu.fxml");
+            if (fxmlUrl == null) {
+                throw new IOException("StaffMenu.fxml not found. Please create the Staff Menu screen.");
+            }
+            
+            FXMLLoader loader = new FXMLLoader(fxmlUrl);
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            Scene scene = new Scene(root);
+            java.net.URL cssUrl = getClass().getResource("/gui/StaffMenu.css");
+            if (cssUrl != null) {
+                scene.getStylesheets().add(cssUrl.toExternalForm());
+            }
+            stage.setScene(scene);
+            stage.setTitle("Staff Menu");
+
+            // Handle window close
+            stage.setOnCloseRequest(closeEvent -> {
+                try {
+                    if (ClientUI.chat != null) {
+                        HashMap<String, String> disconnectMsg = new HashMap<>();
+                        disconnectMsg.put("Disconnect", "");
+                        ClientUI.chat.accept(disconnectMsg);
+                        Thread.sleep(200);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            stage.show();
+            closeCurrentWindow();
+        } catch (IOException | IllegalStateException e) {
+            showError("Staff Menu screen not found. Please create StaffMenu.fxml and StaffMenu.css files.");
+            e.printStackTrace();
+            loginButton.setDisable(false);
+            continueAsGuestButton.setDisable(false);
+        }
+    }
+
+    /**
+     * Navigates to the Manager Menu screen.
+     * 
+     * @param managerId The validated manager ID
+     */
+    private void navigateToManagerMenu(String managerId) {
+        try {
+            java.net.URL fxmlUrl = getClass().getResource("/gui/ManagerMenu.fxml");
+            if (fxmlUrl == null) {
+                throw new IOException("ManagerMenu.fxml not found. Please create the Manager Menu screen.");
+            }
+            
+            FXMLLoader loader = new FXMLLoader(fxmlUrl);
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            Scene scene = new Scene(root);
+            java.net.URL cssUrl = getClass().getResource("/gui/ManagerMenu.css");
+            if (cssUrl != null) {
+                scene.getStylesheets().add(cssUrl.toExternalForm());
+            }
+            stage.setScene(scene);
+            stage.setTitle("Manager Menu");
+
+            // Handle window close
+            stage.setOnCloseRequest(closeEvent -> {
+                try {
+                    if (ClientUI.chat != null) {
+                        HashMap<String, String> disconnectMsg = new HashMap<>();
+                        disconnectMsg.put("Disconnect", "");
+                        ClientUI.chat.accept(disconnectMsg);
+                        Thread.sleep(200);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            stage.show();
+            closeCurrentWindow();
+        } catch (IOException | IllegalStateException e) {
+            showError("Manager Menu screen not found. Please create ManagerMenu.fxml and ManagerMenu.css files.");
+            e.printStackTrace();
+            loginButton.setDisable(false);
+            continueAsGuestButton.setDisable(false);
         }
     }
 
