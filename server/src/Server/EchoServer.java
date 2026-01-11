@@ -10,6 +10,8 @@ import gui.ClientConnectionStatusController;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import ocsf.server.*;
+import entities.WaitingEntry;
+import entities.Payment;
 /*
  * This class is defining as a server
  */
@@ -344,9 +346,9 @@ public class EchoServer extends AbstractServer {
 			break;
 		case UpdateTable:
 			try {
-				String updateData = infoFromUser.get(menuChoiceString);
+				String updateData1 = infoFromUser.get(menuChoiceString);
 				// Format: "tableID|capacity"
-				String[] parts = updateData.split("\\|");
+				String[] parts = updateData1.split("\\|");
 				if (parts.length == 2) {
 					int tableId = Integer.parseInt(parts[0]);
 					int capacity = Integer.parseInt(parts[1]);
@@ -498,17 +500,7 @@ public class EchoServer extends AbstractServer {
 			}
 			flag++;
 			break;
-		case SubInfo:
-			try {
-				System.out.println("Getting subscriber info");
-				List<String> subInfo = mysqlConnection.GetSubInfo();
-				System.out.println("Found " + subInfo.size() + " subscribers");
-				this.sendToAllClients(subInfo);
-			} catch (Exception e) {
-				System.err.println("Exception in SubInfo case: " + e.getMessage());
-				e.printStackTrace();
-				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
-			}
+		
 		case ReservationChartReport:
 			try {
 				System.out.println("Getting Reservation Chart Report...");

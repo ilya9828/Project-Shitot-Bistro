@@ -168,16 +168,16 @@ public class StaffMenuController {
 			// Handle data loading for table-based screens
 			switch (userSelect) {
 			case SubInfo:
-				loadSubInfo(loader);
+				//loadSubInfo(loader);
 				break;
 			case CurrentReservations:
-				loadCurrentReservations(loader);
+				//loadCurrentReservations(loader);
 				break;
 			case GetWaitingList:
-				loadGetWaitingList(loader);
+				//loadGetWaitingList(loader);
 				break;
 			case CurrentCustomers:
-				loadCurrentCustomers(loader);
+				//loadCurrentCustomers(loader);
 				break;
 			case EditTable:
 			case AddTable:
@@ -217,7 +217,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Sub Info data from server.
-	 */
+	 
 	private void loadSubInfo(FXMLLoader loader) {
 		ChatClient.subInfoTable.clear();
 		// Setting the type of the expectedListType
@@ -247,7 +247,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Current Reservations data from server.
-	 */
+	 
 	private void loadCurrentReservations(FXMLLoader loader) {
 		ChatClient.currentReservationsTable.clear();
 		// Setting the type of the expectedListType
@@ -277,7 +277,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Get Waiting List data from server.
-	 */
+	 
 	private void loadGetWaitingList(FXMLLoader loader) {
 		ChatClient.waitingListTable.clear();
 		// Setting the type of the expectedListType
@@ -307,7 +307,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Current Customers data from server.
-	 */
+	 
 	private void loadCurrentCustomers(FXMLLoader loader) {
 		ChatClient.occupiedTablesTable.clear();
 		// Setting the type of the expectedListType

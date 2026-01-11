@@ -20,7 +20,23 @@ public enum UserSelect {
 	UpdateSubscriberInfo("Update Subscriber Info"),
 	GetSubscriberHistory("Get Subscriber History"),
 	CancelReservation("Cancel Reservation"),
-	GetOpeningHours("Get Opening Hours");
+	GetOpeningHours("Get Opening Hours"),
+    RegisterNewSubscriber("Register New Subscriber"),
+    EditOpeningHours("Edit Opening Hours"),
+    AddTable("Add Table"),
+    GetNextTableId("Get Next Table Id"),
+    EditTable("Edit Table"),
+    GetAllTableIds("Get All Table Ids"),
+    GetTableData("Get Table Data"),
+    UpdateTable("Update Table"),
+    DeleteTable("Delete Table"),
+    CurrentCustomers("Current Customers"),
+    GetWaitingList("Get Waiting List"),
+    CurrentReservations("Current Reservations"),
+    SubInfo("Sub Info"),
+    ValidateUserID("Validate User ID"),
+    DelayChartReport("Delay Chart Report"),
+    ReservationChartReport("Reservation Chart Report");
 
     private final String displayName;
 

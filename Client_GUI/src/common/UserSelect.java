@@ -10,7 +10,20 @@ public enum UserSelect {
 	CheckIn("Check In"),
 	WaitingList("Waiting List"),
 	PayBill("Pay Bill"),
-	GetOpeningHours("Get Opening Hours");
+	GetOpeningHours("Get Opening Hours"),
+
+    ShowAllOrders("Show All Orders"),
+    RegisterNewSubscriber("Register New Subscriber"),
+    EditOpeningHours("Edit Opening Hours"),
+    AddTable("Add Table"),
+    EditTable("Edit Table"),
+    CurrentCustomers("Current Customers"),
+    GetWaitingList("Get Waiting List"),
+    CurrentReservations("Current Reservations"),
+    SubInfo("Sub Info"),
+    ValidateUserID("Validate User ID"),
+    DelayChartReport("Delay Chart Report"),
+    ReservationChartReport("Reservation Chart Report");
 
     private final String displayName;
 

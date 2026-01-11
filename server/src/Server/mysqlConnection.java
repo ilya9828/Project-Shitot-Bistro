@@ -17,6 +17,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import entities.Reservations;
+import entities.WaitingEntry;
+import entities.Payment;
 
 /*
  * This class is connect to mySQL DB for G3-prototype server. 
@@ -336,75 +338,6 @@ public class mysqlConnection {
 			return false;
 		}
 	}
-	
-	public static String CheckIn(String ConfirmationCode) {
-		PreparedStatement stmt;
-		try {
-			stmt = conn.prepareStatement(
-				    "UPDATE orders SET status = ? WHERE confirmation_code = ?"
-				);
-				stmt.setString(1, "CheckedIN"); 
-				stmt.setString(2, ConfirmationCode);
-
-				stmt.executeUpdate();
-
-			return "CheckInSuccess";
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return "CheckInFailed";
-		}
-	}
-	
-
-
-	public static String LostCode(String emailOrPhone) {
-	    PreparedStatement stmt = null;
-	    ResultSet rs = null;
-
-	    try {
-	        String query =
-	            "SELECT confirmation_code " +
-	            "FROM orders " +
-	            "WHERE (email = ? OR phone = ?) " +
-	            "AND order_time_date >= ? " +
-	            "AND order_time_date < ? " +
-	            "ORDER BY order_time_date DESC " +
-	            "LIMIT 1";
-
-	        // גבולות היום (00:00 עד 00:00 של מחר)
-	        LocalDate today = LocalDate.now();
-	        LocalDateTime startOfDay = today.atStartOfDay();
-	        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
-
-	        stmt = conn.prepareStatement(query);
-	        stmt.setString(1, emailOrPhone);
-	        stmt.setString(2, emailOrPhone);
-	        stmt.setTimestamp(3, Timestamp.valueOf(startOfDay));
-	        stmt.setTimestamp(4, Timestamp.valueOf(startOfTomorrow));
-
-	        rs = stmt.executeQuery();
-
-	        if (rs.next()) {
-	            String code = rs.getString("confirmation_code");
-	            return "OrderCode:" + code;
-	        } else {
-	            return "LostOrderFailed";
-	        }
-
-	    } catch (SQLException e) {
-	        e.printStackTrace();
-	        return "ServerError";
-	    } finally {
-	        try {
-	            if (rs != null) rs.close();
-	            if (stmt != null) stmt.close();
-	        } catch (SQLException e) {
-	            e.printStackTrace();
-	        }
-	    }
-	}
-
-
 
 
 	/**
@@ -433,90 +366,6 @@ public class mysqlConnection {
 		}
 		return orderData;
 
-	}
-
-	
-	/**
-	 * This method is returning the list of orders from the DB to the client
-	 * @return List of the orders
-	 */
-	public static List<String> GetOrdersTable() {
-		List<String> orders = new ArrayList<>();
-		String query = "SELECT * FROM orders";
-
-		try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
-			while (rs.next()) {
-				String order_num1 = rs.getString("order_number");
-				Date date = rs.getTimestamp("order_time_date") != null ? new Date(rs.getTimestamp("order_time_date").getTime()) : null;
-				int num_guests = rs.getInt("number_of_guests");
-				String con_code = rs.getString("confirmation_code");
-				Integer sub_id = rs.getObject("subscriber_id") != null ? rs.getInt("subscriber_id") : null;
-				Date date_placing_order = rs.getTimestamp("time_date_of_placing_order") != null ? new Date(rs.getTimestamp("time_date_of_placing_order").getTime()) : null;
-
-				// Create a formatted string with the subscriber's information
-				String orderData = order_num1 + ", " + date + ", " + num_guests + ", " + con_code + ", " + sub_id+", "+date_placing_order;
-
-				// Add the formatted string to the list
-				orders.add(orderData);
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-		return orders;
-	}
-	
-	public static boolean insertReservation(Reservations reservation) {
-
-	    String sql =
-	        "INSERT INTO orders " +
-	        "(subscriber_id, number_of_guests, confirmation_code, order_number, " +
-	        "order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone,name) " +
-	        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
-
-	    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-	        // 1️⃣ subscriber_id (יכול להיות NULL)
-	        if (reservation.getSubscriberId() == null) {
-	            pstmt.setNull(1, java.sql.Types.INTEGER);
-	        } else {
-	            pstmt.setInt(1, reservation.getSubscriberId());
-	        }
-
-	        // 2️⃣ number_of_guests
-	        pstmt.setInt(2, reservation.getNumberOfGuests());
-
-	        // 3️⃣ confirmation_code
-	        pstmt.setString(3, reservation.getConfirmationCode());
-
-	        // 4️⃣ order_number
-	        pstmt.setString(4, reservation.getOrderNumber());
-
-	        // 5️⃣ order_time&date (תאריך ושעת ההזמנה למסעדה)
-	        pstmt.setTimestamp(5,Timestamp.valueOf(reservation.getOrderDateTime()));
-
-	        // 6️⃣ time&date_of_placing_order (מתי הוזמנה ההזמנה)
-	        pstmt.setTimestamp(6,Timestamp.valueOf(reservation.getPlacingOrderDate()));
-
-	        // 7️⃣ status
-	        pstmt.setString(7, reservation.getStatus());
-
-	        // 8️⃣ is_subscriber
-	        pstmt.setBoolean(8, reservation.isSubscriber());
-	        
-	        pstmt.setString(9, reservation.getEmail());
-	        
-	        pstmt.setString(10, reservation.getPhoneNumber());
-	        
-	        pstmt.setString(11, reservation.getName());
-
-	        pstmt.executeUpdate();
-	        return true;
-
-	    } catch (SQLException e) {
-	        System.err.println("❌ Error inserting reservation");
-	        e.printStackTrace();
-	        return false;
-	    }
 	}
 
 	/**
