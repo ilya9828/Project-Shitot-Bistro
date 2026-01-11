@@ -40,6 +40,13 @@ public class ServerUI extends Application {
 			}
 			else {
 				Running = true;
+				// Generate monthly reports for previous month if they don't exist
+				// (This is also called in connectToDB, but calling here as backup)
+				try {
+					mysqlConnection.generateMonthlyReportsIfNeeded();
+				} catch (Exception e) {
+					System.err.println("Warning: Failed to generate monthly reports: " + e.getMessage());
+				}
 			}
 		} catch (Exception ex) {
 			localerr = localerr + ("ERROR - Could not listen for clients!");

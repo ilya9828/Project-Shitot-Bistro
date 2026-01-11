@@ -1,0 +1,27 @@
+/* JavaFX CSS - Add Table Screen */
+
+.root {
+    -fx-background-color: #f5f5f5;
+}
+
+#tableIdTextField {
+    -fx-background-color: #e0e0e0;
+    -fx-opacity: 0.7;
+}
+
+#addTableButton {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+}
+
+#addTableButton:hover {
+    -fx-background-color: #45a049;
+}
+
+#statusLabel {
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+}
+
