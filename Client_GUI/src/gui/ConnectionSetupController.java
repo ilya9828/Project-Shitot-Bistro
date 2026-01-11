@@ -118,7 +118,6 @@ public class ConnectionSetupController {
 									stage.setScene(scene);
 									stage.setTitle("User Identification");
 									
-									// טיפול בסגירת חלון דרך האיקס
 									stage.setOnCloseRequest(closeEvent -> {
 										try {
 											if (ClientUI.chat != null) {
@@ -126,7 +125,6 @@ public class ConnectionSetupController {
 												HashMap<String, String> EndingConnections = new HashMap<String, String>();
 												EndingConnections.put("Disconnect", "");
 												ClientUI.chat.accept(EndingConnections);
-												// מחכה קצת כדי שההודעה תשלח
 												try {
 													Thread.sleep(200);
 												} catch (InterruptedException e) {
@@ -168,42 +166,12 @@ public class ConnectionSetupController {
 	}
 
 	
-	/**Constructor of this class, starting the GUI
-	 * @param primaryStage	-Stage of this GUI to upload all the data.
-	 */
-	public void start(Stage primaryStage){
-	    Parent root;
-	    try {
-	        root = FXMLLoader.load(getClass().getResource("/gui/ConnectionSetup.fxml"));
-	        Scene scene = new Scene(root);
-	        scene.getStylesheets().add(getClass().getResource("/gui/ConnectionSetup.css").toExternalForm());
-	        primaryStage.setTitle("Connection Setup Tool");
-	        primaryStage.setScene(scene);
-
-	        // לוכד סגירת חלון דרך האיקס
-	        primaryStage.setOnCloseRequest(event -> {
-	            try {
-	                handleExit(); // שולח הודעה לשרת לפני סגירה
-	            } catch (Exception e) {
-	                e.printStackTrace();
-	            }
-	            Platform.exit(); // סוגר את האפליקציה
-	        });
-
-	        primaryStage.show();
-	    } catch (IOException e) {
-	        e.printStackTrace();
-	    }
-	}
-	
 	private void handleExit() throws Exception {
 	    System.out.println("Disconnecting from server...");
-	    // כאן תשים את הקוד לשליחת הודעת "Disconnected" לשרת
 	    if (ClientUI.chat != null) {
 		    HashMap<String, String> disconnectMsg = new HashMap<>();
 		    disconnectMsg.put("Disconnect", "");
 		    ClientUI.chat.accept(disconnectMsg);
-		    // מחכה קצת כדי שההודעה תשלח
 		    try {
 		        Thread.sleep(200);
 		    } catch (InterruptedException e) {
@@ -221,7 +189,7 @@ public class ConnectionSetupController {
 	 */
 	public void getExitBtn(ActionEvent event) throws Exception {
 	    handleExit();
-	    Platform.exit(); // סוגר את ה-GUI
+	    Platform.exit();
 	}
 
 

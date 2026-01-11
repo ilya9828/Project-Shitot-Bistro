@@ -1,4 +1,4 @@
-/* Modern Professional Design - Check In */
+/* Modern Professional Design - Edit Personal Information */
 
 .root {
     -fx-background-color: linear-gradient(to bottom, #667eea 0%, #764ba2 100%);
@@ -39,25 +39,10 @@
     -fx-background-color: linear-gradient(to bottom, #64748b 0%, #94a3b8 100%);
 }
 
-/* Exit Button */
-#btnExit {
-    -fx-background-color: linear-gradient(to bottom, #ff6b6b 0%, #ee5a6f 100%);
-}
-
-#btnExit:hover {
-    -fx-background-color: linear-gradient(to bottom, #ee5a6f 0%, #ff6b6b 100%);
-}
-
 /* Labels */
 .label {
     -fx-text-fill: white;
     -fx-font-size: 14px;
-    -fx-font-weight: 500;
-}
-
-#statusLabel {
-    -fx-text-fill: #ffd700;
-    -fx-font-size: 13px;
     -fx-font-weight: 500;
 }
 
@@ -78,3 +63,4 @@
     -fx-border-width: 2.5px;
     -fx-effect: dropshadow(one-pass-box, rgba(102,126,234,0.5), 6, 0, 0, 3);
 }
+
