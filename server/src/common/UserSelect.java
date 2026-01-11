@@ -3,14 +3,24 @@ package common;
  * This enum is defining the action select of the user
  */
 public enum UserSelect {
-    ShowAllOrders("Show All Orders"),
     UpdateOrderDate("Update order Date"),
     UpdateNumberOfGuests("Update Number Of Guests"),
 	LoadOrders("Load Orders"),
-	CheckIn("Check In"),
+    CheckIn("Check In"),
 	LostCode("Lost Code"),
 	Connected("Connected"),
-	Disconnect("Disconnect");
+	Disconnect("Disconnect"),
+	ValidateSubscriber("Validate Subscriber"),
+	PayBill("Pay Bill"),
+	ExitWaitingList("Exit Waiting List"),
+	UpdateEmailOrPhone("Update Email Or Phone"),
+	JoinWaitingListSub("Join Waiting List Subscriber"),
+	ExitWaitingListSub("Exit Waiting List Subscriber"),
+	GetSubscriberInfo("Get Subscriber Info"),
+	UpdateSubscriberInfo("Update Subscriber Info"),
+	GetSubscriberHistory("Get Subscriber History"),
+	CancelReservation("Cancel Reservation"),
+	GetOpeningHours("Get Opening Hours");
 
     private final String displayName;
 
