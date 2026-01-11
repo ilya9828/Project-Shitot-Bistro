@@ -10,6 +10,7 @@ import java.util.Random;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.UserSessionHelper;
 import entities.Reservations;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -42,63 +43,172 @@ public class ReserveTableController {
     @FXML
     private TextField input;
     
+    @FXML
+    private javafx.scene.control.Label lblName;
+    @FXML
+    private javafx.scene.control.Label lblContact;
+    
 
     @FXML
     private Button reserveButton;
     @FXML
     Labeled lblStatus = null;
     @FXML
-    private Button btnExit = null;
-    @FXML
     private Button btnBack = null;
 
     @FXML
     public void initialize() {
-        System.out.println("ReserveTableController initialized");
-
-        initTimeComboBox();
+        initTimeComboBox(null, null);
+        
+        // Add listener to date picker to update time combobox when date changes
+        datePicker.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null) {
+                updateTimeComboBoxForDate(newValue);
+            }
+        });
+        
+        // If current user is a subscriber, hide name and contact fields.
+        if (UserSessionHelper.isSubscriber()) {
+        	if (name != null) {
+        		name.setVisible(false);
+        		name.setManaged(false);
+        	}
+        	if (input != null) {
+        		input.setVisible(false);
+        		input.setManaged(false);
+        	}
+        	if (lblName != null) {
+        		lblName.setVisible(false);
+        		lblName.setManaged(false);
+        	}
+        	if (lblContact != null) {
+        		lblContact.setVisible(false);
+        		lblContact.setManaged(false);
+        	}
+        }
     }
 
-    private void initTimeComboBox() {
+    private void initTimeComboBox(LocalTime startTime, LocalTime endTime) {
+        timeComboBox.getItems().clear();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
-        LocalTime time = LocalTime.of(12, 0);
-        LocalTime end = LocalTime.of(22, 0);
+        // Use default hours if not provided
+        if (startTime == null) {
+            startTime = LocalTime.of(12, 0);
+        }
+        if (endTime == null) {
+            endTime = LocalTime.of(22, 0);
+        }
 
-        while (!time.isAfter(end)) {
+        LocalTime time = startTime;
+        while (!time.isAfter(endTime)) {
             timeComboBox.getItems().add(time.format(formatter));
             time = time.plusMinutes(30);
         }
+    }
+    
+    private void updateTimeComboBoxForDate(LocalDate date) {
+        // Format date as yyyy-MM-dd
+        String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         
-
-        System.out.println("Time options loaded: " + timeComboBox.getItems().size());
+        // Send request to server in background thread
+        new Thread(() -> {
+            ChatClient.ResetServerString();
+            
+            // Send request to server
+            HashMap<String, String> request = new HashMap<>();
+            request.put("GetOpeningHours", dateStr);
+            ClientUI.chat.accept(request);
+            
+            // Wait for server response
+            while (ChatClient.fromserverString.equals(new String())) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    break;
+                }
+            }
+            
+            // Update UI on JavaFX thread
+            Platform.runLater(() -> {
+                String response = ChatClient.fromserverString;
+                ChatClient.ResetServerString();
+                
+                if ("DEFAULT".equals(response) || response == null || response.isEmpty()) {
+                    // Use default hours (12:00-22:00)
+                    initTimeComboBox(null, null);
+                } else {
+                    // Parse opening hours (format: "15:00-18:00")
+                    try {
+                        String[] times = response.split("-");
+                        if (times.length == 2) {
+                            LocalTime start = LocalTime.parse(times[0].trim());
+                            LocalTime end = LocalTime.parse(times[1].trim());
+                            initTimeComboBox(start, end);
+                        } else {
+                            // Invalid format, use default
+                            initTimeComboBox(null, null);
+                        }
+                    } catch (Exception e) {
+                        // Parse error, use default
+                        initTimeComboBox(null, null);
+                    }
+                }
+            });
+        }).start();
     }
     
     /*
 	 * This method is for the exit button sending a message to the server that now we are disconnecting,
 	 * closing the GUI and the connection for the server.
 	 */
-	public void getExitBtn(ActionEvent event) throws Exception {
-		System.out.println("Disconnecting from the Server and ending the program.");
-		HashMap<String, String> EndingConnections = new HashMap<String, String>();
-		EndingConnections.put("Disconnect", "");
-		ClientUI.chat.accept(EndingConnections);
-		System.exit(0);
-	}
 	
 	/** This method is for the back button closing the current GUI and uploading the menu GUI.
      * @param event - click on the back button.
      * @throws IOException
      */
     public void Back(ActionEvent event) throws IOException {
-        FXMLLoader ordersLoader = new FXMLLoader(getClass().getResource("/gui/Menu.fxml"));
-        Parent ordersRoot = ordersLoader.load();
-        Stage ordersStage = new Stage();
-        Scene ordersScene = new Scene(ordersRoot);
-        ordersScene.getStylesheets().add(getClass().getResource("/gui/Menu.css").toExternalForm());
-        ordersStage.setScene(ordersScene);
-        ordersStage.setTitle("Menu");
-        ordersStage.show();
+        // Navigate back to appropriate menu based on user type
+        String menuFile = UserSessionHelper.isGuest() ? "/gui/GuestMenu.fxml" : "/gui/SubMenu.fxml";
+        String cssFile = UserSessionHelper.isGuest() ? "/gui/GuestMenu.css" : "/gui/SubMenu.css";
+        String title = UserSessionHelper.isGuest() ? "Guest Menu" : "Subscriber Menu";
+        
+        FXMLLoader loader = new FXMLLoader(getClass().getResource(menuFile));
+        Parent root = loader.load();
+        
+        // If subscriber, set the subscriber ID
+        if (UserSessionHelper.isSubscriber()) {
+            try {
+                Object controller = loader.getController();
+                if (controller instanceof SubMenuController) {
+                    ((SubMenuController) controller).setSubscriberID(UserSessionHelper.getSubscriberID());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+        Stage stage = new Stage();
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
+        stage.setScene(scene);
+        stage.setTitle(title);
+        
+        stage.setOnCloseRequest(closeEvent -> {
+            try {
+                if (ClientUI.chat != null) {
+                    HashMap<String, String> disconnectMsg = new HashMap<>();
+                    disconnectMsg.put("Disconnect", "");
+                    ClientUI.chat.accept(disconnectMsg);
+                    Thread.sleep(200);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        
+        stage.show();
         ((Node) event.getSource()).getScene().getWindow().hide();
     }
     
@@ -110,29 +220,35 @@ public class ReserveTableController {
         LocalDate reservationDate = datePicker.getValue();
         String time = timeComboBox.getValue();
         String guestsText = guestsField.getText();
-        String inputText = input.getText(); // השדה שמקבל קלט
         String email = "";
         String phoneNumber = "";
         String nameText = name.getText();
         
-        if (inputText.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
-            email = inputText;
-            phoneNumber = "";
-        } 
-        else if (inputText.matches("\\d{10,12}")) {
-            phoneNumber = inputText;
-            email = "";
-        } 
-        else {
-            email = "";
-            phoneNumber = "";
-            showError("Invalid input");
+        boolean isSubscriber = UserSessionHelper.isSubscriber();
+        String inputText = isSubscriber ? "" : input.getText(); // only from guest
+        
+        // For guest: validate email/phone input
+        if (!isSubscriber) {
+	        if (inputText.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+	            email = inputText;
+	            phoneNumber = "";
+	        } 
+	        else if (inputText.matches("\\d{10,12}")) {
+	            phoneNumber = inputText;
+	            email = "";
+	        } 
+	        else {
+	            email = "";
+	            phoneNumber = "";
+	            showError("Invalid input");
+	            return;
+	        }
         }
 
-
-		if (reservationDate == null || time == null ||
-            guestsText.isEmpty() || inputText.isEmpty()) {
-            lblStatus.setText("Please fill all fields.");
+        // Common validation
+		if (reservationDate == null || time == null || guestsText.isEmpty() ||
+			(!isSubscriber && (inputText == null || inputText.isEmpty()))) {
+            lblStatus.setText("Please fill all required fields.");
             return;
         }
 
@@ -144,9 +260,19 @@ public class ReserveTableController {
             return;
         }
 
-        // ===== יצירת נתונים =====
         Integer subscriberId = null;
-        boolean isSubscriber = false;
+        boolean isSubscriberFlag = false;
+        
+        if (isSubscriber) {
+        	try {
+        		subscriberId = Integer.parseInt(UserSessionHelper.getSubscriberID());
+        		isSubscriberFlag = true;
+        	} catch (NumberFormatException ex) {
+        		// If subscriber id is not numeric, treat as guest
+        		subscriberId = null;
+        		isSubscriberFlag = false;
+        	}
+        }
 
         String confirmationCode = generateConfirmationCode();
         String orderNumber = "ORD-" + System.currentTimeMillis();
@@ -176,7 +302,7 @@ public class ReserveTableController {
                 reservationDateTime,
                 orderDateTime,
                 "PENDING",
-                isSubscriber,
+                isSubscriberFlag,
                 email,
                 phoneNumber,
                 nameText
@@ -186,21 +312,68 @@ public class ReserveTableController {
         lblStatus.setText("Sending reservation to server...\nPlease wait...");
 
         new Thread(() -> {
-
+            // Reset response string before sending request
+            ChatClient.ResetServerString();
+            
+            // Send request to server
             ClientUI.chat.accept(reservation);
+            
+            // Wait for server response (wait until string is no longer empty)
+            while (ChatClient.fromserverString.equals(new String())) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    break;
+                }
+            }
 
+            // Update UI on JavaFX thread
             Platform.runLater(() -> {
-                if ("ReservationAdded".equals(ChatClient.fromserverString)) {
+                String response = ChatClient.fromserverString;
+                ChatClient.ResetServerString();
+                
+                if ("ReservationAdded".equals(response)) {
                     lblStatus.setText("");
                 	showInfo(
                             "Reservation created successfully!\n" +
                             "Confirmation Code: " + confirmationCode
                     );
+                } else if (response.startsWith("INVALID_DATE_TIME:")) {
+                    // Invalid date/time error
+                    String errorMessage = response.substring("INVALID_DATE_TIME:".length());
+                    showError(errorMessage);
+                } else if (response.startsWith("NO_CAPACITY:")) {
+                    // Parse alternative times from response
+                    String altTimesPart = response.substring("NO_CAPACITY:".length());
+                    String message = "Unfortunately, there is no available space at the requested time.\n\n";
+                    
+                    if (altTimesPart.startsWith("ALT_TIMES:")) {
+                        String timesStr = altTimesPart.substring("ALT_TIMES:".length());
+                        String[] times = timesStr.split("\\|");
+                        String beforeTime = times.length > 0 && !times[0].isEmpty() ? formatAlternativeTime(times[0]) : null;
+                        String afterTime = times.length > 1 && !times[1].isEmpty() ? formatAlternativeTime(times[1]) : null;
+                        
+                        message += "Alternative available times:\n";
+                        if (beforeTime != null) {
+                            message += "• Earlier: " + beforeTime + "\n";
+                        }
+                        if (afterTime != null) {
+                            message += "• Later: " + afterTime + "\n";
+                        }
+                        if (beforeTime == null && afterTime == null) {
+                            message += "No alternative times found. Please try a different date.\n";
+                        }
+                    } else {
+                        message += "No alternative times found. Please try a different date.\n";
+                    }
+                    
+                    showError(message);
+                } else if (response.isEmpty()) {
+                    lblStatus.setText("No response from server. Please try again.");
                 } else {
-                    lblStatus.setText("Failed to create reservation.");
+                    lblStatus.setText("Failed to create reservation. Server response: " + response);
                 }
-
-                ChatClient.ResetServerString();
             });
 
         }).start();
@@ -221,9 +394,21 @@ public class ReserveTableController {
         
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
+        alert.setTitle("No Available Space");
+        alert.setHeaderText("Reservation Not Available");
+        
+        // Create a label with wrapping text for better display
+        javafx.scene.control.Label label = new javafx.scene.control.Label(msg);
+        label.setWrapText(true);
+        label.setPrefWidth(500); // Set preferred width for wrapping
+        label.setStyle("-fx-font-size: 14px; -fx-line-spacing: 5px;");
+        
+        alert.getDialogPane().setContent(label);
+        
+        // Increase dialog size
+        alert.getDialogPane().setPrefWidth(550);
+        alert.getDialogPane().setPrefHeight(300);
+        
         alert.showAndWait();
     }
 
@@ -235,5 +420,21 @@ public class ReserveTableController {
         alert.showAndWait();
     }
 
+    /**
+     * Format alternative time from database timestamp to user-friendly format
+     * @param timestampStr Timestamp string from database
+     * @return Formatted time string (date and time)
+     */
+    private String formatAlternativeTime(String timestampStr) {
+        try {
+            // Parse the timestamp string (format: yyyy-MM-dd HH:mm:ss.0)
+            LocalDateTime dateTime = LocalDateTime.parse(timestampStr.substring(0, timestampStr.indexOf('.')), 
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            return dateTime.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        } catch (Exception e) {
+            // If parsing fails, return the original string
+            return timestampStr;
+        }
+    }
 
 }
