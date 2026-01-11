@@ -1,25 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.VBox?>
 
 <VBox
-    xmlns="http://javafx.com/javafx"
-    xmlns:fx="http://javafx.com/fxml"
+    xmlns="http://javafx.com/javafx/21"
+    xmlns:fx="http://javafx.com/fxml/1"
     fx:controller="gui.LostCodeController"
-    spacing="15"
+    spacing="20"
     alignment="CENTER"
-    prefWidth="350"
-    prefHeight="250">
+    prefWidth="500"
+    prefHeight="350">
+    
+    <padding>
+        <Insets bottom="20" left="20" right="20" top="20" />
+    </padding>
 
-    <Label text="Recover Confirmation Code"/>
+    <Label text="Recover Confirmation Code" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;"/>
+    
+    <Label text="Enter the email address or phone number you used when making your reservation" 
+           wrapText="true" 
+           style="-fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 0 20 10 20;"
+           maxWidth="450"/>
 
     <TextField
         fx:id="inputField"
-        promptText="Enter Email or Phone Number"/>
+        prefWidth="300.0"
+        promptText="Email (example@email.com) or Phone (05XXXXXXXX)"/>
 
-    <Button text="Recover Code" onAction="#handleRecover"/>
+    <Button text="Recover Code" onAction="#handleRecover" style="-fx-font-size: 14px; -fx-padding: 10px 20px;" prefWidth="150.0"/>
 
-    <Label fx:id="resultLabel"/>
+    <Label fx:id="resultLabel" style="-fx-text-fill: #ffd700; -fx-font-size: 14px;" wrapText="true" maxWidth="440" prefHeight="60"/>
+
+    <!-- Back button: go back to CheckIn screen -->
+    <Button fx:id="backButton" text="Back" onAction="#handleBack" prefWidth="140.0"
+            style="-fx-font-size: 13px; -fx-padding: 8px 16px; -fx-background-color: linear-gradient(to bottom, #ff6b6b 0%, #ee5a6f 100%); -fx-text-fill: white;"/>
 
 </VBox>

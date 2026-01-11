@@ -1,4 +1,4 @@
-/* Modern Professional Design - Check In */
+/* Modern Professional Design - Update Order Date */
 
 .root {
     -fx-background-color: linear-gradient(to bottom, #667eea 0%, #764ba2 100%);
@@ -48,16 +48,20 @@
     -fx-background-color: linear-gradient(to bottom, #ee5a6f 0%, #ff6b6b 100%);
 }
 
+/* Cancel Reservation Button - Red variant */
+#btnCancel {
+    -fx-background-color: linear-gradient(to bottom, #ff6b6b 0%, #ee5a6f 100%);
+}
+
+#btnCancel:hover {
+    -fx-background-color: linear-gradient(to bottom, #ee5a6f 0%, #ff6b6b 100%);
+    -fx-effect: dropshadow(three-pass-box, rgba(238,90,111,0.7), 10, 0, 0, 4);
+}
+
 /* Labels */
 .label {
     -fx-text-fill: white;
     -fx-font-size: 14px;
-    -fx-font-weight: 500;
-}
-
-#statusLabel {
-    -fx-text-fill: #ffd700;
-    -fx-font-size: 13px;
     -fx-font-weight: 500;
 }
 
@@ -77,4 +81,63 @@
     -fx-border-color: #667eea;
     -fx-border-width: 2.5px;
     -fx-effect: dropshadow(one-pass-box, rgba(102,126,234,0.5), 6, 0, 0, 3);
+}
+
+/* Date Picker */
+.date-picker {
+    -fx-background-color: white;
+    -fx-background-radius: 10px;
+    -fx-border-color: #d0d0d0;
+    -fx-border-radius: 10px;
+    -fx-border-width: 2px;
+    -fx-padding: 8px;
+    -fx-effect: dropshadow(one-pass-box, rgba(0,0,0,0.1), 4, 0, 0, 2);
+}
+
+.date-picker:focused {
+    -fx-border-color: #667eea;
+    -fx-border-width: 2.5px;
+}
+
+.date-picker .arrow-button {
+    -fx-background-color: #667eea;
+    -fx-background-radius: 8px;
+}
+
+/* ComboBox - match time selection styling to rest of system */
+.combo-box {
+    -fx-background-color: white;
+    -fx-background-radius: 10px;
+    -fx-border-color: #d0d0d0;
+    -fx-border-radius: 10px;
+    -fx-border-width: 2px;
+    -fx-padding: 10px 12px;
+    -fx-font-size: 14px;
+    -fx-effect: dropshadow(one-pass-box, rgba(0,0,0,0.1), 4, 0, 0, 2);
+}
+
+.combo-box:hover {
+    -fx-border-color: #667eea;
+}
+
+.combo-box:focused {
+    -fx-border-color: #667eea;
+    -fx-border-width: 2.5px;
+}
+
+.combo-box .list-view {
+    -fx-background-color: white;
+    -fx-background-radius: 8px;
+    -fx-border-color: #d0d0d0;
+    -fx-border-radius: 8px;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: white;
+    -fx-text-fill: #333;
+    -fx-padding: 10px;
+}
+
+.combo-box .list-cell:hover {
+    -fx-background-color: #f0f0ff;
 }
