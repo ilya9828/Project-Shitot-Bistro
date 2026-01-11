@@ -1,9 +1,18 @@
 package gui;
 
+import java.util.HashMap;
+
+import client.ChatClient;
+import client.ClientUI;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.stage.Stage;
 
 public class CheckInController {
 
@@ -18,41 +27,67 @@ public class CheckInController {
     private void handleCheckIn() {
         String code = confirmationCodeField.getText();
 
-        if (code.isEmpty()) {
+        if (code == null || code.isEmpty()) {
             showError("Please enter your confirmation code.");
             return;
         }
 
-        // כאן אפשר להוסיף לוגיקה לשליחת הקוד לשרת או בדיקה מול DB
-        statusLabel.setText("Checked in with code: " + code);
-        showInfo("Check-In successful!");
-    }
+        statusLabel.setText("Checking in... Please wait");
 
-    // פעולה במקרה שהקוד אבד
-    @FXML
-    private void handleLostCode() {
-        String code = confirmationCodeField.getText();
+        HashMap<String, String> request = new HashMap<>();
+        request.put("CheckIn", code);
 
-        if (code.isEmpty()) {
-            showError("No confirmation code entered. We'll generate a new one.");
+        // ❗ חוסם עד לקבלת תשובה מהשרת
+        ClientUI.chat.accept(request);
+
+        if ("CheckInSuccess".equals(ChatClient.fromserverString)) {
+            statusLabel.setText("");
+            showInfo("Check-In successful!");
+        } 
+        else if ("CheckInFailed".equals(ChatClient.fromserverString)) {
+            statusLabel.setText("");
+            showError("Invalid confirmation code");
+        } 
+        else {
+            statusLabel.setText("");
+            showError("Server error");
         }
 
-        // כאן אפשר להוסיף לוגיקה לשליחת קוד חדש או בקשת קוד מחדש
-        statusLabel.setText("Lost code requested");
-        showInfo("A new confirmation code has been sent to you.");
+        ChatClient.ResetServerString();
     }
 
-    private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
+
+
+    @FXML
+    private void handleLostCode() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/gui/LostCode.fxml")
+            );
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            stage.setTitle("Recover Confirmation Code");
+            stage.setScene(new Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            showError("Failed to open Lost Code screen");
+        }
     }
+
 
     private void showInfo(String msg) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Info");
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
+    }
+    
+    private void showError(String msg) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
         alert.setHeaderText(null);
         alert.setContentText(msg);
         alert.showAndWait();

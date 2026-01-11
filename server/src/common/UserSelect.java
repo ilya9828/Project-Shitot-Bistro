@@ -7,6 +7,8 @@ public enum UserSelect {
     UpdateOrderDate("Update order Date"),
     UpdateNumberOfGuests("Update Number Of Guests"),
 	LoadOrders("Load Orders"),
+	CheckIn("Check In"),
+	LostCode("Lost Code"),
 	Connected("Connected"),
 	Disconnect("Disconnect");
 

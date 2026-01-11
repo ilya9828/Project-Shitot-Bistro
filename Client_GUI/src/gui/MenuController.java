@@ -130,6 +130,8 @@ public class MenuController {
 			
 		case ReserveTable:
 			break;
+		case CheckIn:
+			break;
 
 		default:
 			System.out.println("error? you selected: " + userselect);
