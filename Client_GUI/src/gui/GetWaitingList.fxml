@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="369.0" prefWidth="834.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.GetWaitingListController">
+   <children>
+      <Button id="btnExit" fx:id="btnExit" layoutX="647.0" layoutY="302.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
+      <Button id="btnBack" fx:id="btnBack" layoutX="148.0" layoutY="302.0" mnemonicParsing="false" onAction="#Back" text="Back" />
+      <TableView id="waitingListTable" fx:id="waitingListTable" layoutX="21.0" layoutY="45.0" prefHeight="211.0" prefWidth="800.0">
+        <columns>
+          <TableColumn fx:id="waitingID" prefWidth="133.0" text="Waiting ID" />
+          <TableColumn fx:id="numberOfGuests" prefWidth="133.0" text="Number of Guests" />
+          <TableColumn fx:id="phone" prefWidth="133.0" text="Phone" />
+          <TableColumn fx:id="date" prefWidth="133.0" text="Date" />
+          <TableColumn fx:id="status" prefWidth="133.0" text="Status" />
+          <TableColumn fx:id="createdAt" prefWidth="135.0" text="Created At" />
+        </columns>
+      </TableView>
+   </children>
+</AnchorPane>
+

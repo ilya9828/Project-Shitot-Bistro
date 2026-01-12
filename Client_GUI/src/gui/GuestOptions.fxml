@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.GuestOptionsController" prefWidth="400" prefHeight="850">
+    <padding>
+        <Insets bottom="15" left="40" right="40" top="20" />
+    </padding>
+
+    <top>
+        <VBox alignment="CENTER" spacing="5">
+            <Label text="Guest Options" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;" />
+        </VBox>
+    </top>
+
+    <center>
+        <VBox spacing="6" alignment="CENTER" style="-fx-padding: 10px;">
+            <!-- Guest menu options (Restaurant Services) -->
+            <VBox spacing="5" alignment="CENTER">
+                <Label text="Restaurant Services" style="-fx-text-fill: #60a5fa; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 0 0 2 0;" />
+                <Button fx:id="reserveTableButton" onAction="#handleReserveTable" text="Reserve Table" prefWidth="280" prefHeight="35" />
+                <Button fx:id="editReservationButton" onAction="#handleEditReservation" text="Edit Reservation" prefWidth="280" prefHeight="35" />
+                <Button fx:id="checkInButton" onAction="#handleCheckIn" text="Check In" prefWidth="280" prefHeight="35" />
+                <Button fx:id="joinWaitingListButton" onAction="#handleJoinWaitingList" text="Join Waiting List" prefWidth="280" prefHeight="35" />
+                <Button fx:id="exitWaitingListButton" onAction="#handleExitWaitingList" text="Exit Waiting List" prefWidth="280" prefHeight="35" />
+                <Button fx:id="payBillButton" onAction="#handlePayBill" text="Pay Bill" prefWidth="280" prefHeight="35" />
+            </VBox>
+        </VBox>
+    </center>
+
+    <bottom>
+        <VBox alignment="CENTER" spacing="5" style="-fx-padding: 10px 0 0 0;">
+            <Button fx:id="backToLoginButton" onAction="#handleBack" text="Back" prefWidth="280" prefHeight="35" styleClass="back-to-login-button" />
+        </VBox>
+    </bottom>
+</BorderPane>
+

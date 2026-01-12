@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.PieChart?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.DelayChartReportController">
+    <padding>
+        <Insets bottom="10" left="20" right="20" top="10" />
+    </padding>
+
+    <top>
+        <VBox alignment="CENTER" spacing="8">
+            <Label text="Delay Chart Report" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;" />
+            <Label fx:id="reportPeriodLabel" text="Loading report..." style="-fx-font-size: 14px; -fx-text-fill: #fbbf24; -fx-font-weight: bold;" />
+            <Button fx:id="selectMonthsButton" onAction="#handleSelectMonths" text="Select Custom Months" prefWidth="200" style="-fx-font-size: 12px;" />
+        </VBox>
+    </top>
+
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" style="-fx-background: transparent; -fx-background-color: transparent;">
+            <VBox spacing="15" alignment="CENTER" style="-fx-padding: 5px;">
+                <!-- Top row: Two charts side by side -->
+                <HBox spacing="25" alignment="CENTER">
+                    <!-- Arrival Status Chart - Separate Box -->
+                    <VBox spacing="6" alignment="CENTER" prefWidth="280" minWidth="280" maxWidth="280">
+                        <Label text="Arrival Status" style="-fx-text-fill: #fbbf24; -fx-font-size: 13px; -fx-font-weight: bold;" />
+                        <VBox alignment="CENTER" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240">
+                            <PieChart fx:id="arrivalStatusChart" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240" />
+                        </VBox>
+                    </VBox>
+                    
+                    <!-- Late Arrivals Breakdown Chart - Separate Box -->
+                    <VBox spacing="6" alignment="CENTER" prefWidth="280" minWidth="280" maxWidth="280">
+                        <Label text="Late Arrivals Breakdown" style="-fx-text-fill: #fbbf24; -fx-font-size: 13px; -fx-font-weight: bold;" />
+                        <VBox alignment="CENTER" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240">
+                            <PieChart fx:id="lateArrivalsChart" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240" />
+                        </VBox>
+                    </VBox>
+                </HBox>
+                
+                <!-- Bottom row: Meal Duration Chart centered - Separate Box -->
+                <VBox spacing="6" alignment="CENTER" prefWidth="280" minWidth="280" maxWidth="280">
+                    <Label text="Meal Duration" style="-fx-text-fill: #fbbf24; -fx-font-size: 13px; -fx-font-weight: bold;" />
+                    <VBox alignment="CENTER" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240">
+                        <PieChart fx:id="mealDurationChart" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240" />
+                    </VBox>
+                </VBox>
+                
+                <!-- Statistics Summary -->
+                <VBox spacing="6" alignment="CENTER" style="-fx-padding: 12px; -fx-background-color: rgba(0,0,0,0.3); -fx-background-radius: 10px; -fx-max-width: 650;">
+                    <Label text="Summary Statistics" style="-fx-text-fill: #fbbf24; -fx-font-size: 14px; -fx-font-weight: bold;" />
+                    <Label fx:id="summaryLabel" text="" style="-fx-text-fill: white; -fx-font-size: 11px; -fx-wrap-text: true;" />
+                </VBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+
+    <bottom>
+        <HBox alignment="CENTER" spacing="20" style="-fx-padding: 10px 0 0 0;">
+            <Button fx:id="backButton" onAction="#Back" text="Back" prefWidth="150" />
+            <Button fx:id="exitButton" onAction="#getExitBtn" text="Exit" prefWidth="150" />
+        </HBox>
+    </bottom>
+</BorderPane>
+
