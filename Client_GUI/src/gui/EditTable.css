@@ -1,0 +1,44 @@
+/* JavaFX CSS - Edit Table Screen */
+
+.root {
+    -fx-background-color: #f5f5f5;
+}
+
+#deleteButton {
+    -fx-background-color: #f44336;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+}
+
+#deleteButton:hover {
+    -fx-background-color: #da190b;
+}
+
+#loadButton {
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+}
+
+#loadButton:hover {
+    -fx-background-color: #0b7dda;
+}
+
+#saveButton {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+}
+
+#saveButton:hover {
+    -fx-background-color: #45a049;
+}
+
+#statusLabel {
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+}
+

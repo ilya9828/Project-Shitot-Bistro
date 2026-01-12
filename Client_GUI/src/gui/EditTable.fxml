@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.text.Font?>
+
+<GridPane alignment="CENTER" hgap="10" prefHeight="400.0" prefWidth="500.0" vgap="15" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.EditTableController">
+    
+    <padding>
+        <Insets bottom="20" left="20" right="20" top="20" />
+    </padding>
+
+    <!-- Title -->
+    <Label text="Edit Table" GridPane.columnSpan="2" GridPane.rowIndex="0">
+        <font>
+            <Font name="System Bold" size="16.0" />
+        </font>
+    </Label>
+
+    <!-- Table Selection -->
+    <Label text="Select Table ID:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+    <ComboBox fx:id="tableIdComboBox" promptText="Select table" GridPane.columnIndex="1" GridPane.rowIndex="1" prefWidth="250.0" />
+
+    <!-- Action Buttons -->
+    <HBox spacing="20" GridPane.columnIndex="0" GridPane.rowIndex="2" GridPane.columnSpan="2">
+        <Button fx:id="loadButton" onAction="#handleLoad" text="Load" prefWidth="100.0" />
+        <Button fx:id="deleteButton" onAction="#handleDelete" text="Delete" prefWidth="100.0" />
+    </HBox>
+
+    <!-- Capacity Section (shown after Load) -->
+    <Label text="Capacity (Chairs):" GridPane.columnIndex="0" GridPane.rowIndex="3" />
+    <TextField fx:id="capacityTextField" promptText="Enter number of chairs" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="3" prefWidth="250.0" />
+
+    <!-- Save Button (shown after Load) -->
+    <Button fx:id="saveButton" onAction="#handleSave" text="Save Changes" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="4" prefWidth="120.0" />
+
+    <!-- Status Label -->
+    <Label fx:id="statusLabel" text="" GridPane.columnSpan="2" GridPane.rowIndex="5" />
+
+    <!-- Bottom Buttons -->
+    <HBox alignment="CENTER" spacing="150" GridPane.columnSpan="2" GridPane.rowIndex="6">
+        <Button fx:id="btnBack" onAction="#Back" text="Back" />
+        <Button fx:id="btnExit" onAction="#getExitBtn" text="Exit" />
+    </HBox>
+    
+    <columnConstraints>
+        <ColumnConstraints />
+        <ColumnConstraints />
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints />
+        <RowConstraints />
+        <RowConstraints />
+        <RowConstraints />
+        <RowConstraints />
+        <RowConstraints />
+        <RowConstraints />
+    </rowConstraints>
+
+</GridPane>
+
