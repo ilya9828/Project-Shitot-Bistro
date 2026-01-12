@@ -3,13 +3,14 @@ package gui;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.stage.Stage;
 
 /**
- * Controller for the Subscriber Menu screen.
- * Provides options for subscribers: EditPersonalInfo, ShowHistory, LogOut.
+ * Controller for the Subscriber Options screen.
+ * Provides options for subscribers: EditPersonalInfo, ShowHistory, and restaurant services.
  * Inherits all common functionality from BaseMenuController.
  */
-public class SubMenuController extends BaseMenuController {
+public class SubscriberOptionsController extends BaseMenuController {
 
     @FXML
     private Button editPersonalInfoButton;
@@ -21,7 +22,7 @@ public class SubMenuController extends BaseMenuController {
     private Label subscriberInfoLabel;
 
     private String subscriberID;
-
+    
     /**
      * Sets the subscriber ID and updates the display.
      * 
@@ -33,7 +34,16 @@ public class SubMenuController extends BaseMenuController {
             subscriberInfoLabel.setText("Logged in as Subscriber ID: " + subid);
         }
     }
-
+    
+    /**
+     * Gets the subscriber ID.
+     * 
+     * @return The subscriber ID
+     */
+    public String getSubscriberID() {
+        return subscriberID;
+    }
+    
     /**
      * Initializes the controller.
      */
@@ -60,18 +70,24 @@ public class SubMenuController extends BaseMenuController {
      */
     @FXML
     private void handleShowHistory() {
+        if (subscriberID == null || subscriberID.isEmpty()) {
+            showError("Subscriber ID not set. Please login again.");
+            return;
+        }
         showInfo("Show History - Feature coming soon!\nSubscriber ID: " + subscriberID);
-        // TODO: Navigate to ShowHistory screen and fetch history from server
+        // TODO: Navigate to ShowHistory screen and fetch history from server using subscriberID
     }
-
+    
     /**
-     * Handles the "Log Out" button click.
-     * Returns to the User Identification screen.
+     * Handles the "Back" button click.
+     * Closes the current window to return to the previous menu.
      */
     @FXML
-    private void handleLogOut() {
-        // Reuse the logic from base class
-        handleBackToLogin();
+    private void handleBack() {
+        if (backToLoginButton != null && backToLoginButton.getScene() != null) {
+            Stage stage = (Stage) backToLoginButton.getScene().getWindow();
+            stage.close();
+        }
     }
 }
 
