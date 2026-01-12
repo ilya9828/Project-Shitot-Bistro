@@ -385,38 +385,58 @@ public class EditReservationController {
 			return;
 		}
 		
-		HashMap<String, String> loadthisid = new HashMap<String, String>();
-		loadthisid.put("LoadOrders", confirmationCode);
-		ClientUI.chat.accept(loadthisid);
-		while (ChatClient.fromserverString.equals(new String())) {
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		if (!ChatClient.fromserverString.contains(",") || ChatClient.fromserverString.equals("Empty")) {
-			showError("Invalid confirmation code.\n\nCannot load the requested confirmation code. Please make sure you entered the correct code and try again.");
-			lblErr.setText("");
-		} else {
-			// Check if reservation status is PENDING
-			String[] parts = ChatClient.fromserverString.split(", ");
-			if (parts.length >= 9) {
-				String status = parts[8].trim(); // Status is the 9th element (index 8)
-				if (!status.equalsIgnoreCase("PENDING")) {
-					showError("Cannot edit reservation.\n\nThe reservation status is '" + status + "'.\n\nOnly reservations with status 'PENDING' can be edited.");
-					lblErr.setText("");
-					ChatClient.ResetServerString();
-					return;
+		// FIX: Run server communication on background thread to avoid blocking UI
+		lblStatus.setText("Loading reservation...\nPlease wait...");
+		lblErr.setText("");
+		
+		new Thread(() -> {
+			HashMap<String, String> loadthisid = new HashMap<String, String>();
+			loadthisid.put("LoadOrders", confirmationCode);
+			
+			// Reset response string before sending request
+			ChatClient.ResetServerString();
+			ClientUI.chat.accept(loadthisid);
+			
+			// Wait for server response (wait until string is no longer empty)
+			while (ChatClient.fromserverString.equals(new String())) {
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					break;
 				}
 			}
 			
-			// No alert if everything is OK - just load the details
-			lblErr.setText("");
-			loaded = 1;
-			LoadDetails(ChatClient.fromserverString);
-		}
-		ChatClient.ResetServerString();
+			// Update UI on JavaFX thread
+			final String response = ChatClient.fromserverString;
+			ChatClient.ResetServerString();
+			
+			Platform.runLater(() -> {
+				if (response == null || response.isEmpty() || !response.contains(",") || response.equals("Empty")) {
+					showError("Invalid confirmation code.\n\nCannot load the requested confirmation code. Please make sure you entered the correct code and try again.");
+					lblErr.setText("");
+					lblStatus.setText("");
+				} else {
+					// Check if reservation status is PENDING
+					String[] parts = response.split(", ");
+					if (parts.length >= 9) {
+						String status = parts[8].trim(); // Status is the 9th element (index 8)
+						if (!status.equalsIgnoreCase("PENDING")) {
+							showError("Cannot edit reservation.\n\nThe reservation status is '" + status + "'.\n\nOnly reservations with status 'PENDING' can be edited.");
+							lblErr.setText("");
+							lblStatus.setText("");
+							return;
+						}
+					}
+					
+					// No alert if everything is OK - just load the details
+					lblErr.setText("");
+					lblStatus.setText("");
+					loaded = 1;
+					LoadDetails(response);
+				}
+			});
+		}).start();
 	}
 
 	/** This method is getting a string of subscriber and loading that data to the GUI

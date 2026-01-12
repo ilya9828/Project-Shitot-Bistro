@@ -435,8 +435,10 @@ public class EchoServer extends AbstractServer {
 			flag++;
 			break;
 		//This case is loading the requested ID from the DB and sending to the client.
+		// FIX: Changed to use confirmation_code (String) instead of order_number (int)
 		case LoadOrders:
-			String RequestedID = mysqlConnection.Load(Integer.parseInt(infoFromUser.get(menuChoiceString)));
+			String confirmationCode = infoFromUser.get(menuChoiceString);
+			String RequestedID = mysqlConnection.Load(confirmationCode);
 			this.sendToAllClients(RequestedID);
 			flag++;
 			break;

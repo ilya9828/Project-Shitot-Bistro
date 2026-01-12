@@ -45,6 +45,10 @@ public class mysqlConnection {
 		try {
 			conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/bistrodb?allowLoadLocalInfile=true&serverTimezone=Asia/Jerusalem&useSSL=false","root","Aa123456");
 			ret = ret + ("SQL connection succeed");
+			startWaitingListProcessingThread();
+			startReminderNotificationThread();
+			startExpiredReservationCancellationThread();
+					
 		} catch (SQLException ex) {/* handle any errors */
 			
 			ret = ret + ("SQLException: " + ex.getMessage());
@@ -3860,6 +3864,7 @@ public class mysqlConnection {
 	                    tableUpdateStmt.setInt(1, tableId);
 	                    tableUpdateStmt.executeUpdate();
 	                }
+	               
 	            }
 	            
 	            conn.commit();
@@ -3881,7 +3886,8 @@ public class mysqlConnection {
 	        return "PaymentFailed: " + e.getMessage();
 	    }
 	}
-
+	
+	
 	/**
 	 * Cancels a reservation by updating its status to "Cancelled by user".
 	 * 
