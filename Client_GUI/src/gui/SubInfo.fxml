@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="369.0" prefWidth="834.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.SubInfoController">
+   <children>
+      <Button id="btnExit" fx:id="btnExit" layoutX="647.0" layoutY="302.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
+      <Button id="btnBack" fx:id="btnBack" layoutX="148.0" layoutY="302.0" mnemonicParsing="false" onAction="#Back" text="Back" />
+      <TableView id="subInfoTable" fx:id="subInfoTable" layoutX="21.0" layoutY="45.0" prefHeight="211.0" prefWidth="800.0">
+        <columns>
+          <TableColumn fx:id="subscriberID" prefWidth="200.0" text="Subscriber ID" />
+          <TableColumn fx:id="name" prefWidth="200.0" text="Name" />
+          <TableColumn fx:id="email" prefWidth="200.0" text="Email" />
+          <TableColumn fx:id="phone" prefWidth="200.0" text="Phone" />
+        </columns>
+      </TableView>
+   </children>
+</AnchorPane>
+

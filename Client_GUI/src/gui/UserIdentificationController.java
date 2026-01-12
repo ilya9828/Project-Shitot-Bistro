@@ -204,13 +204,15 @@ public class UserIdentificationController {
             Parent root = loader.load();
 
             Stage stage = new Stage();
-            Scene scene = new Scene(root);
+            Scene scene = new Scene(root, 400, 700);
             java.net.URL cssUrl = getClass().getResource("/gui/StaffMenu.css");
             if (cssUrl != null) {
                 scene.getStylesheets().add(cssUrl.toExternalForm());
             }
             stage.setScene(scene);
             stage.setTitle("Staff Menu");
+            stage.setMinWidth(400);
+            stage.setMinHeight(700);
 
             // Handle window close
             stage.setOnCloseRequest(closeEvent -> {
@@ -252,13 +254,15 @@ public class UserIdentificationController {
             Parent root = loader.load();
 
             Stage stage = new Stage();
-            Scene scene = new Scene(root);
+            Scene scene = new Scene(root, 400, 850);
             java.net.URL cssUrl = getClass().getResource("/gui/ManagerMenu.css");
             if (cssUrl != null) {
                 scene.getStylesheets().add(cssUrl.toExternalForm());
             }
             stage.setScene(scene);
             stage.setTitle("Manager Menu");
+            stage.setMinWidth(400);
+            stage.setMinHeight(850);
 
             // Handle window close
             stage.setOnCloseRequest(closeEvent -> {

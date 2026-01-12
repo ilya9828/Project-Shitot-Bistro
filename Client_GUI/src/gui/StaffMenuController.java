@@ -15,15 +15,18 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.Pane;
 import javafx.stage.Stage;
 
 /**
  * Controller for Staff Menu screen.
  * Provides button-based menu options for staff members.
+ * Extends BaseMenuController to inherit common functionality.
  */
-public class StaffMenuController {
-// needs to extend the BaseMenuController. 
+public class StaffMenuController extends BaseMenuController { 
 	@FXML
 	private Button subInfoButton;
 	@FXML
@@ -41,7 +44,9 @@ public class StaffMenuController {
 	@FXML
 	private Button registerNewSubscriberButton;
 	@FXML
-	private Button backToLoginButton;
+	private Button guestOptionsButton;
+	@FXML
+	private Button subscriberOptionsButton;
 
 	/**
 	 * Handles Sub Info button click.
@@ -108,22 +113,166 @@ public class StaffMenuController {
 	}
 
 	/**
-	 * Handles Back to Login button click.
-	 * Navigates back to User Identification screen.
+	 * Handles Guest Options button click.
+	 * Navigates to Guest Options screen.
 	 */
 	@FXML
-	private void handleBackToLogin() {
+	private void handleGuestOptions() {
+		navigateToGuestOptions();
+	}
+
+	/**
+	 * Handles Subscriber Options button click.
+	 * Navigates to Subscriber Options screen.
+	 */
+	@FXML
+	private void handleSubscriberOptions() {
+		navigateToSubscriberOptions();
+	}
+
+	/**
+	 * Navigates to Guest Options screen.
+	 * Positions it to perfectly overlap the current Manager/Staff window.
+	 */
+	private void navigateToGuestOptions() {
 		try {
-			common.UserSessionHelper.reset();
-			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/UserIdentification.fxml"));
+			// Get current window position and size
+			Stage currentStage = (Stage) guestOptionsButton.getScene().getWindow();
+			double currentX = currentStage.getX();
+			double currentY = currentStage.getY();
+			double currentWidth = currentStage.getWidth();
+			double currentHeight = currentStage.getHeight();
+			
+			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/GuestOptions.fxml"));
 			Parent root = loader.load();
 
 			Stage stage = new Stage();
-			Scene scene = new Scene(root);
-			scene.getStylesheets().add(getClass().getResource("/gui/UserIdentification.css").toExternalForm());
+			Scene scene = new Scene(root, currentWidth, currentHeight);
+			scene.getStylesheets().add(getClass().getResource("/gui/GuestOptions.css").toExternalForm());
 			stage.setScene(scene);
-			stage.setTitle("User Identification");
+			stage.setTitle("Guest Options");
+			
+			// Position the new window exactly on top of the current one
+			stage.setX(currentX);
+			stage.setY(currentY);
+			stage.setWidth(currentWidth);
+			stage.setHeight(currentHeight);
+			stage.setMinWidth(currentWidth);
+			stage.setMinHeight(currentHeight);
 
+			// Handle window close
+			stage.setOnCloseRequest(closeEvent -> {
+				try {
+					if (ClientUI.chat != null) {
+						HashMap<String, String> disconnectMsg = new HashMap<>();
+						disconnectMsg.put("Disconnect", "");
+						ClientUI.chat.accept(disconnectMsg);
+						Thread.sleep(200);
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			});
+
+			// Hide current window and show new one
+			currentStage.hide();
+			stage.show();
+		} catch (IOException e) {
+			System.err.println("Failed to load Guest Options screen: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * Navigates to Subscriber Options screen.
+	 * First prompts for subscriber ID, then opens the screen with that ID.
+	 */
+	private void navigateToSubscriberOptions() {
+		// Show dialog to get subscriber ID
+		showSubscriberIDDialog();
+	}
+	
+	/**
+	 * Shows a dialog to input subscriber ID and validates it before opening Subscriber Options.
+	 */
+	private void showSubscriberIDDialog() {
+		TextInputDialog dialog = new TextInputDialog();
+		dialog.setTitle("Subscriber Identification");
+		dialog.setHeaderText("Enter Subscriber ID");
+		dialog.setContentText("Please enter the subscriber ID:");
+
+		ButtonType loginButtonType = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
+		ButtonType cancelButtonType = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+		dialog.getDialogPane().getButtonTypes().setAll(loginButtonType, cancelButtonType);
+
+		java.util.Optional<String> result = dialog.showAndWait();
+		
+		if (result.isPresent() && !result.get().trim().isEmpty()) {
+			String subscriberId = result.get().trim();
+			validateAndOpenSubscriberOptions(subscriberId);
+		}
+	}
+	
+	/**
+	 * Validates the subscriber ID with the server and opens Subscriber Options if valid.
+	 */
+	private void validateAndOpenSubscriberOptions(String subscriberId) {
+		// Disable buttons during validation
+		subscriberOptionsButton.setDisable(true);
+		
+		// Send user ID to server for validation
+		new Thread(() -> {
+			try {
+				HashMap<String, String> validationRequest = new HashMap<>();
+				validationRequest.put("ValidateUserID", subscriberId);
+				
+				ClientUI.chat.accept(validationRequest);
+
+				// Wait for server response
+				Thread.sleep(500);
+
+				Platform.runLater(() -> {
+					String response = ChatClient.fromserverString;
+					ChatClient.ResetServerString();
+
+					subscriberOptionsButton.setDisable(false);
+					
+					if ("Subscriber".equals(response)) {
+						// Valid subscriber - open Subscriber Options screen
+						openSubscriberOptionsScreen(subscriberId);
+					} else {
+						// Invalid ID or error
+						showError("Invalid Subscriber ID. Please check the ID and try again.");
+					}
+				});
+			} catch (Exception e) {
+				Platform.runLater(() -> {
+					subscriberOptionsButton.setDisable(false);
+					showError("Error connecting to server. Please try again.");
+					e.printStackTrace();
+				});
+			}
+		}).start();
+	}
+	
+	/**
+	 * Opens the Subscriber Options screen with the validated subscriber ID.
+	 */
+	private void openSubscriberOptionsScreen(String subscriberId) {
+		try {
+			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/SubscriberOptions.fxml"));
+			Parent root = loader.load();
+			
+			SubscriberOptionsController controller = loader.getController();
+			controller.setSubscriberID(subscriberId);
+
+			Stage stage = new Stage();
+			Scene scene = new Scene(root);
+			scene.getStylesheets().add(getClass().getResource("/gui/SubscriberOptions.css").toExternalForm());
+			stage.setScene(scene);
+			stage.setTitle("Subscriber Options");
+
+			// Handle window close
 			stage.setOnCloseRequest(closeEvent -> {
 				try {
 					if (ClientUI.chat != null) {
@@ -138,14 +287,15 @@ public class StaffMenuController {
 			});
 
 			stage.show();
-			// Hide current window
-			Stage currentStage = (Stage) backToLoginButton.getScene().getWindow();
-			currentStage.hide();
+			// Don't close current window - allow user to navigate back
 		} catch (IOException e) {
-			System.err.println("Failed to load User Identification screen: " + e.getMessage());
+			System.err.println("Failed to load Subscriber Options screen: " + e.getMessage());
 			e.printStackTrace();
+			showError("Failed to load Subscriber Options screen.");
 		}
 	}
+
+	// handleBackToLogin is now inherited from BaseMenuController
 
 	/**
 	 * Generic method to navigate to a screen with optional data loading.
@@ -168,16 +318,16 @@ public class StaffMenuController {
 			// Handle data loading for table-based screens
 			switch (userSelect) {
 			case SubInfo:
-				//loadSubInfo(loader);
+				loadSubInfo(loader);
 				break;
 			case CurrentReservations:
-				//loadCurrentReservations(loader);
+				loadCurrentReservations(loader);
 				break;
 			case GetWaitingList:
-				//loadGetWaitingList(loader);
+				loadGetWaitingList(loader);
 				break;
 			case CurrentCustomers:
-				//loadCurrentCustomers(loader);
+				loadCurrentCustomers(loader);
 				break;
 			case EditTable:
 			case AddTable:
@@ -217,7 +367,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Sub Info data from server.
-	 
+	 */
 	private void loadSubInfo(FXMLLoader loader) {
 		ChatClient.subInfoTable.clear();
 		// Setting the type of the expectedListType
@@ -247,7 +397,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Current Reservations data from server.
-	 
+	 */
 	private void loadCurrentReservations(FXMLLoader loader) {
 		ChatClient.currentReservationsTable.clear();
 		// Setting the type of the expectedListType
@@ -277,7 +427,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Get Waiting List data from server.
-	 
+	 */
 	private void loadGetWaitingList(FXMLLoader loader) {
 		ChatClient.waitingListTable.clear();
 		// Setting the type of the expectedListType
@@ -307,7 +457,7 @@ public class StaffMenuController {
 
 	/**
 	 * Loads Current Customers data from server.
-	 
+	 */
 	private void loadCurrentCustomers(FXMLLoader loader) {
 		ChatClient.occupiedTablesTable.clear();
 		// Setting the type of the expectedListType
