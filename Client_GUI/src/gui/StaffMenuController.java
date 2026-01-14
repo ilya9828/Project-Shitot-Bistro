@@ -136,47 +136,18 @@ public class StaffMenuController extends BaseMenuController {
 	 */
 	private void navigateToGuestOptions() {
 		try {
-			// Get current window position and size
+			// Get current window
 			Stage currentStage = (Stage) guestOptionsButton.getScene().getWindow();
-			double currentX = currentStage.getX();
-			double currentY = currentStage.getY();
 			double currentWidth = currentStage.getWidth();
 			double currentHeight = currentStage.getHeight();
 			
 			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/GuestOptions.fxml"));
 			Parent root = loader.load();
 
-			Stage stage = new Stage();
 			Scene scene = new Scene(root, currentWidth, currentHeight);
 			scene.getStylesheets().add(getClass().getResource("/gui/GuestOptions.css").toExternalForm());
-			stage.setScene(scene);
-			stage.setTitle("Guest Options");
-			
-			// Position the new window exactly on top of the current one
-			stage.setX(currentX);
-			stage.setY(currentY);
-			stage.setWidth(currentWidth);
-			stage.setHeight(currentHeight);
-			stage.setMinWidth(currentWidth);
-			stage.setMinHeight(currentHeight);
-
-			// Handle window close
-			stage.setOnCloseRequest(closeEvent -> {
-				try {
-					if (ClientUI.chat != null) {
-						HashMap<String, String> disconnectMsg = new HashMap<>();
-						disconnectMsg.put("Disconnect", "");
-						ClientUI.chat.accept(disconnectMsg);
-						Thread.sleep(200);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			});
-
-			// Hide current window and show new one
-			currentStage.hide();
-			stage.show();
+			currentStage.setTitle("Guest Options");
+			currentStage.setScene(scene);
 		} catch (IOException e) {
 			System.err.println("Failed to load Guest Options screen: " + e.getMessage());
 			e.printStackTrace();
@@ -260,34 +231,19 @@ public class StaffMenuController extends BaseMenuController {
 	 */
 	private void openSubscriberOptionsScreen(String subscriberId) {
 		try {
+			// Get current window
+			Stage currentStage = (Stage) subscriberOptionsButton.getScene().getWindow();
+			
 			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/SubscriberOptions.fxml"));
 			Parent root = loader.load();
 			
 			SubscriberOptionsController controller = loader.getController();
 			controller.setSubscriberID(subscriberId);
 
-			Stage stage = new Stage();
 			Scene scene = new Scene(root);
 			scene.getStylesheets().add(getClass().getResource("/gui/SubscriberOptions.css").toExternalForm());
-			stage.setScene(scene);
-			stage.setTitle("Subscriber Options");
-
-			// Handle window close
-			stage.setOnCloseRequest(closeEvent -> {
-				try {
-					if (ClientUI.chat != null) {
-						HashMap<String, String> disconnectMsg = new HashMap<>();
-						disconnectMsg.put("Disconnect", "");
-						ClientUI.chat.accept(disconnectMsg);
-						Thread.sleep(200);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			});
-
-			stage.show();
-			// Don't close current window - allow user to navigate back
+			currentStage.setTitle("Subscriber Options");
+			currentStage.setScene(scene);
 		} catch (IOException e) {
 			System.err.println("Failed to load Subscriber Options screen: " + e.getMessage());
 			e.printStackTrace();
@@ -308,11 +264,9 @@ public class StaffMenuController extends BaseMenuController {
 		try {
 			FXMLLoader loader = new FXMLLoader();
 			
-			// Hide current window
+			// Get current window (don't hide it)
 			Stage currentStage = (Stage) subInfoButton.getScene().getWindow();
-			currentStage.hide();
 			
-			Stage primaryStage = new Stage();
 			Pane root = loader.load(getClass().getResource("/gui/" + screenName + ".fxml").openStream());
 			
 			// Handle data loading for table-based screens
@@ -341,24 +295,8 @@ public class StaffMenuController extends BaseMenuController {
 
 			Scene scene = new Scene(root);
 			scene.getStylesheets().add(getClass().getResource("/gui/" + screenName + ".css").toExternalForm());
-			primaryStage.setTitle(title);
-			primaryStage.setScene(scene);
-			
-			// Handle window close
-			primaryStage.setOnCloseRequest(closeEvent -> {
-				try {
-					if (ClientUI.chat != null) {
-						HashMap<String, String> disconnectMsg = new HashMap<>();
-						disconnectMsg.put("Disconnect", "");
-						ClientUI.chat.accept(disconnectMsg);
-						Thread.sleep(200);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			});
-			
-			primaryStage.show();
+			currentStage.setTitle(title);
+			currentStage.setScene(scene);
 		} catch (Exception e) {
 			System.err.println("Failed to load " + screenName + " screen: " + e.getMessage());
 			e.printStackTrace();

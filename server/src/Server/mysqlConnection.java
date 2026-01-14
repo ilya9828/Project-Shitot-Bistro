@@ -1,5 +1,4 @@
 package Server;
-
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,6 +47,7 @@ public class mysqlConnection {
 			startWaitingListProcessingThread();
 			startReminderNotificationThread();
 			startExpiredReservationCancellationThread();
+			startLongSittingCheckThread();
 					
 		} catch (SQLException ex) {/* handle any errors */
 			
@@ -515,6 +515,21 @@ public class mysqlConnection {
 				for (String day : selectedDays) {
 					day = day.trim();
 					if (!day.isEmpty()) {
+						// First, deactivate ALL existing permanent entries for this day (to handle multiple permanent entries)
+						String deactivatePermanentSql = "UPDATE opening_hours SET is_active = false WHERE day_of_week = ? AND is_permanent = 1 AND specific_date IS NULL";
+						try (PreparedStatement deactivatePermanentStmt = conn.prepareStatement(deactivatePermanentSql)) {
+							deactivatePermanentStmt.setString(1, day);
+							deactivatePermanentStmt.executeUpdate();
+						}
+						
+						// Also deactivate all non-permanent entries (specific date entries) for this day
+						String deactivateNonPermanentSql = "UPDATE opening_hours SET is_active = false WHERE day_of_week = ? AND (is_permanent != 1 OR specific_date IS NOT NULL)";
+						try (PreparedStatement deactivateNonPermanentStmt = conn.prepareStatement(deactivateNonPermanentSql)) {
+							deactivateNonPermanentStmt.setString(1, day);
+							deactivateNonPermanentStmt.executeUpdate();
+						}
+						
+						// Now insert or update the permanent entry (this will be the only active permanent entry for this day)
 						String sql = "INSERT INTO opening_hours (day_of_week, opening_time, closing_time, is_active, is_permanent) " +
 						             "VALUES (?, ?, ?, true, true) " +
 						             "ON DUPLICATE KEY UPDATE opening_time = ?, closing_time = ?, is_active = true, is_permanent = true";
@@ -778,7 +793,7 @@ public class mysqlConnection {
 		try {
 			// Join with orders table to get name (customerName) and visit table to get startTime (checkInTime)
 			// Joined on confirmationCode
-			String sql = "SELECT t.tableID, t.capacity, o.name AS customerName, v.startTime AS checkInTime, t.confirmationCode, v.is_reserved, v.is_late, v.billID " +
+			String sql = "SELECT t.tableID, t.capacity, o.name AS customerName, v.startTime AS checkInTime, t.confirmationCode " +
 			             "FROM tables t " +
 			             "LEFT JOIN orders o ON t.confirmationCode = o.confirmation_code " +
 			             "LEFT JOIN visit v ON t.confirmationCode = v.confirmation_code " +
@@ -830,12 +845,12 @@ public class mysqlConnection {
 		List<String> waitingList = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
+			System.err.println("Database connection is null!");
 			return waitingList;
 		}
 
 		try {
-			String sql = "SELECT waitingID, number_of_guests, phone, date, status, created_at FROM waitingentry ORDER BY waitingID";
+			String sql = "SELECT waitingID, number_of_guests, phone, date, status, created_at FROM waitingentry WHERE created_at >= NOW() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY) ORDER BY waitingID";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql);
 			     ResultSet rs = pstmt.executeQuery()) {
@@ -1194,7 +1209,7 @@ public class mysqlConnection {
 			}
 			whereClause.append(")");
 			
-			String sql = "SELECT o.order_time_date, v.startTime, v.endTime, o.status, o.confirmation_code, v.is_reserved, v.is_late, v.billID " +
+			String sql = "SELECT o.order_time_date, v.startTime, v.endTime, o.status, o.confirmation_code " +
 			             "FROM orders o " +
 			             "LEFT JOIN visit v ON o.confirmation_code = v.confirmation_code " +
 			             "WHERE " + whereClause.toString() + " " +
@@ -1204,7 +1219,6 @@ public class mysqlConnection {
 			int onTimeCount = 0;
 			int late1to14Count = 0;
 			int late15PlusCount = 0;
-			int cancelledCount = 0;
 			int mealUnder2HrCount = 0;
 			int mealOver2HrCount = 0;
 			int clientsWithMealDuration = 0;
@@ -1224,7 +1238,6 @@ public class mysqlConnection {
 					int rowCount = 0;
 					while (rs.next()) {
 						rowCount++;
-						totalClients++;
 						
 						java.sql.Timestamp orderTime = rs.getTimestamp("order_time_date");
 						java.sql.Timestamp startTime = rs.getTimestamp("startTime");
@@ -1232,9 +1245,12 @@ public class mysqlConnection {
 						String status = rs.getString("status");
 						
 						boolean isCancelled = "cancelled by restaurant".equalsIgnoreCase(status) || 
-						                      "Cancelled by restaurant".equalsIgnoreCase(status);
+						                      "Cancelled by restaurant".equalsIgnoreCase(status) ||
+						                      "Cancelled by resturant".equalsIgnoreCase(status);
 						
+						// Only count orders that were checked in (have startTime) or were cancelled
 						if (orderTime != null && startTime != null) {
+							totalClients++;
 							long delayMinutes = java.time.Duration.between(
 								orderTime.toInstant(), 
 								startTime.toInstant()
@@ -1242,17 +1258,14 @@ public class mysqlConnection {
 							
 							if (delayMinutes == 0) {
 								onTimeCount++;
-							} else if (delayMinutes >= 1 && delayMinutes <= 14) {
+							} else if (delayMinutes >= 1 && delayMinutes < 15) {
 								late1to14Count++;
-							} else if (delayMinutes > 14) {
+							} else if (delayMinutes >= 15) {
 								late15PlusCount++;
-								if (isCancelled) {
-									cancelledCount++;
-								}
 							}
 						} else if (isCancelled) {
+							totalClients++;
 							late15PlusCount++;
-							cancelledCount++;
 						}
 						
 						if (startTime != null && endTime != null) {
@@ -1277,16 +1290,15 @@ public class mysqlConnection {
 			double onTimePercent = totalClients > 0 ? (onTimeCount * 100.0 / totalClients) : 0.0;
 			double late1to14Percent = totalClients > 0 ? (late1to14Count * 100.0 / totalClients) : 0.0;
 			double late15PlusPercent = totalClients > 0 ? (late15PlusCount * 100.0 / totalClients) : 0.0;
-			double cancelledPercent = totalClients > 0 ? (cancelledCount * 100.0 / totalClients) : 0.0;
 			double mealUnder2HrPercent = clientsWithMealDuration > 0 ? (mealUnder2HrCount * 100.0 / clientsWithMealDuration) : 0.0;
 			double mealOver2HrPercent = clientsWithMealDuration > 0 ? (mealOver2HrCount * 100.0 / clientsWithMealDuration) : 0.0;
 			
-			String reportString = String.format("%s|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d",
+			// Format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
+			String reportString = String.format("%s|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d",
 				reportPeriod.toString(),
 				onTimeCount, onTimePercent,
 				late1to14Count, late1to14Percent,
 				late15PlusCount, late15PlusPercent,
-				cancelledCount, cancelledPercent,
 				mealUnder2HrCount, mealUnder2HrPercent,
 				mealOver2HrCount, mealOver2HrPercent,
 				totalClients
@@ -1297,7 +1309,6 @@ public class mysqlConnection {
 			System.out.println("   On Time: " + onTimeCount + " (" + String.format("%.1f", onTimePercent) + "%)");
 			System.out.println("   Late 1-14 mins: " + late1to14Count + " (" + String.format("%.1f", late1to14Percent) + "%)");
 			System.out.println("   Late >15 mins: " + late15PlusCount + " (" + String.format("%.1f", late15PlusPercent) + "%)");
-			System.out.println("   Cancelled: " + cancelledCount + " (" + String.format("%.1f", cancelledPercent) + "%)");
 			System.out.println("   Meal <2hrs: " + mealUnder2HrCount + " (" + String.format("%.1f", mealUnder2HrPercent) + "%)");
 			System.out.println("   Meal >2hrs: " + mealOver2HrCount + " (" + String.format("%.1f", mealOver2HrPercent) + "%)");
 			
@@ -1339,7 +1350,7 @@ public class mysqlConnection {
 	 * Gets delay chart report data for the previous month (default).
 	 * Calculates arrival timing and meal duration statistics.
 	 * @return List with single string containing all statistics separated by |
-	 * Format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|cancelledCount|cancelledPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
+	 * Format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
 	 */
 	public static List<String> GetDelayChartReport() {
 		List<String> reportData = new ArrayList<>();
@@ -1369,7 +1380,7 @@ public class mysqlConnection {
 			System.out.println("📅 Date range: " + startOfPreviousMonth + " to " + endOfPreviousMonth);
 			
 			// Query to get orders with their visit data for the previous month
-			String sql = "SELECT o.order_time_date, v.startTime, v.endTime, o.status, o.confirmation_code, v.is_reserved, v.is_late, v.billID " +
+			String sql = "SELECT o.order_time_date, v.startTime, v.endTime, o.status, o.confirmation_code " +
 			             "FROM orders o " +
 			             "LEFT JOIN visit v ON o.confirmation_code = v.confirmation_code " +
 			             "WHERE o.order_time_date >= ? AND o.order_time_date < ? " +
@@ -1379,7 +1390,6 @@ public class mysqlConnection {
 			int onTimeCount = 0;
 			int late1to14Count = 0;
 			int late15PlusCount = 0;
-			int cancelledCount = 0;
 			int mealUnder2HrCount = 0;
 			int mealOver2HrCount = 0;
 			int clientsWithMealDuration = 0;
@@ -1396,7 +1406,6 @@ public class mysqlConnection {
 					int rowCount = 0;
 					while (rs.next()) {
 						rowCount++;
-						totalClients++;
 						
 						java.sql.Timestamp orderTime = rs.getTimestamp("order_time_date");
 						java.sql.Timestamp startTime = rs.getTimestamp("startTime");
@@ -1404,11 +1413,12 @@ public class mysqlConnection {
 						String status = rs.getString("status");
 						
 						// Check if cancelled by restaurant
-						boolean isCancelled = "cancelled by restaurant".equalsIgnoreCase(status) || 
-						                      "Cancelled by restaurant".equalsIgnoreCase(status);
+						boolean isCancelled = "Cancelled by resturant".equalsIgnoreCase(status);
 						
+						// Only count orders that were checked in (have startTime) or were cancelled
 						// Calculate arrival delay
 						if (orderTime != null && startTime != null) {
+							totalClients++;
 							long delayMinutes = java.time.Duration.between(
 								orderTime.toInstant(), 
 								startTime.toInstant()
@@ -1416,18 +1426,15 @@ public class mysqlConnection {
 							
 							if (delayMinutes == 0) {
 								onTimeCount++;
-							} else if (delayMinutes >= 1 && delayMinutes <= 14) {
+							} else if (delayMinutes >= 1 && delayMinutes < 15) {
 								late1to14Count++;
-							} else if (delayMinutes > 14) {
+							} else if (delayMinutes >= 15) {
 								late15PlusCount++;
-								if (isCancelled) {
-									cancelledCount++;
-								}
 							}
 						} else if (isCancelled) {
 							// If no startTime but cancelled, count as late >15 mins
+							totalClients++;
 							late15PlusCount++;
-							cancelledCount++;
 						}
 						
 						// Calculate meal duration
@@ -1453,17 +1460,15 @@ public class mysqlConnection {
 			double onTimePercent = totalClients > 0 ? (onTimeCount * 100.0 / totalClients) : 0.0;
 			double late1to14Percent = totalClients > 0 ? (late1to14Count * 100.0 / totalClients) : 0.0;
 			double late15PlusPercent = totalClients > 0 ? (late15PlusCount * 100.0 / totalClients) : 0.0;
-			double cancelledPercent = totalClients > 0 ? (cancelledCount * 100.0 / totalClients) : 0.0;
 			double mealUnder2HrPercent = clientsWithMealDuration > 0 ? (mealUnder2HrCount * 100.0 / clientsWithMealDuration) : 0.0;
 			double mealOver2HrPercent = clientsWithMealDuration > 0 ? (mealOver2HrCount * 100.0 / clientsWithMealDuration) : 0.0;
 			
-			// Format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|cancelledCount|cancelledPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
-			String reportString = String.format("%s|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d",
+			// Format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
+			String reportString = String.format("%s|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d|%.2f|%d",
 				reportPeriod,
 				onTimeCount, onTimePercent,
 				late1to14Count, late1to14Percent,
 				late15PlusCount, late15PlusPercent,
-				cancelledCount, cancelledPercent,
 				mealUnder2HrCount, mealUnder2HrPercent,
 				mealOver2HrCount, mealOver2HrPercent,
 				totalClients
@@ -1474,7 +1479,6 @@ public class mysqlConnection {
 			System.out.println("   On Time: " + onTimeCount + " (" + String.format("%.1f", onTimePercent) + "%)");
 			System.out.println("   Late 1-14 mins: " + late1to14Count + " (" + String.format("%.1f", late1to14Percent) + "%)");
 			System.out.println("   Late >15 mins: " + late15PlusCount + " (" + String.format("%.1f", late15PlusPercent) + "%)");
-			System.out.println("   Cancelled: " + cancelledCount + " (" + String.format("%.1f", cancelledPercent) + "%)");
 			System.out.println("   Meal <2hrs: " + mealUnder2HrCount + " (" + String.format("%.1f", mealUnder2HrPercent) + "%)");
 			System.out.println("   Meal >2hrs: " + mealOver2HrCount + " (" + String.format("%.1f", mealOver2HrPercent) + "%)");
 			
@@ -1507,7 +1511,7 @@ public class mysqlConnection {
 	 * Get reservation chart report for custom months.
 	 * @param customMonths Comma-separated list of months in "YYYY-MM" format (e.g., "2025-01,2025-02,2024-07")
 	 * @return List with single string containing all statistics separated by |
-	 * Format: "reportPeriod|reservationsCount|reservationsPercent|waitingListOrdersCount|waitingListOrdersPercent|totalWaitingList|checkedInCount|checkedInPercent|leftFromWaitingCount|leftFromWaitingPercent|totalOrders|totalWaitingListOutcomes"
+	 * Format: "reportPeriod|successfulVisitsCount|successfulVisitsPercent|unsuccessfulVisitsCount|unsuccessfulVisitsPercent|totalWaitingList|checkedInCount|checkedInPercent|leftFromWaitingCount|leftFromWaitingPercent|totalVisits|totalWaitingListOutcomes"
 	 */
 	public static List<String> GetReservationChartReport(String customMonths) {
 		List<String> reportData = new ArrayList<>();
@@ -1579,21 +1583,21 @@ public class mysqlConnection {
 			whereClauseOrders.append(")");
 			whereClauseWaiting.append(")");
 			
-			// Count reservations from orders table
-			String sqlOrders = "SELECT COUNT(*) as count FROM orders o WHERE " + whereClauseOrders.toString();
+			// Count orders by status (paid vs not paid) for Total Visits chart
+			String sqlOrders = "SELECT status, COUNT(*) as count FROM orders o WHERE " + whereClauseOrders.toString() + " GROUP BY status";
 			
 			// Count waiting list entries by status
 			// Exclude "WAITING" status as it's just a default value that should be changed eventually
-			// Past month reports should only show resolved entries (checkedin or left)
+			// Past month reports should only show resolved entries (seated or left)
 			String sqlWaiting = "SELECT status, COUNT(*) as count FROM waitingentry w WHERE " + whereClauseWaiting.toString() + " AND status != 'WAITING' AND status != 'waiting' GROUP BY status";
 			
-			int reservationsCount = 0;
-			int waitingListOrdersCount = 0; // status = "checkedin"
+			int successfulVisitsCount = 0; // status = "paid"
+			int unsuccessfulVisitsCount = 0; // status != "paid"
 			int totalWaitingList = 0;
-			int checkedInCount = 0; // status = "checkedin"
+			int checkedInCount = 0; // status = "SEATED" 
 			int leftFromWaitingCount = 0; // status = "left"
 			
-			// Count reservations
+			// Count orders by status (paid vs not paid)
 			try (PreparedStatement pstmt = conn.prepareStatement(sqlOrders)) {
 				int paramIndex = 1;
 				for (java.time.YearMonth ym : months) {
@@ -1604,8 +1608,15 @@ public class mysqlConnection {
 				}
 				
 				try (ResultSet rs = pstmt.executeQuery()) {
-					if (rs.next()) {
-						reservationsCount = rs.getInt("count");
+					while (rs.next()) {
+						String status = rs.getString("status");
+						int count = rs.getInt("count");
+						
+						if (status != null && status.equalsIgnoreCase("paid")) {
+							successfulVisitsCount += count;
+						} else {
+							unsuccessfulVisitsCount += count;
+						}
 					}
 				}
 			}
@@ -1627,8 +1638,7 @@ public class mysqlConnection {
 						
 						if (status != null) {
 							String statusLower = status.toLowerCase();
-							if (statusLower.equals("checkedin")) {
-								waitingListOrdersCount = count;
+							if (statusLower.equals("seated")) {
 								checkedInCount = count;
 								totalWaitingList += count;
 							} else if (statusLower.equals("left")) {
@@ -1636,19 +1646,19 @@ public class mysqlConnection {
 								totalWaitingList += count;
 							}
 							// Note: WAITING status is excluded from the query (it's just a default value)
-							// Past month reports should only show resolved entries (checkedin or left)
+							// Past month reports should only show resolved entries (seated or left)
 						}
 					}
 				}
 			}
 			
 			// Calculate totals
-			// Total orders = reservations + waiting list orders (checkedin) - NOT including left
-			int totalOrders = reservationsCount + waitingListOrdersCount;
+			// Total visits = all orders (successful + unsuccessful)
+			int totalVisits = successfulVisitsCount + unsuccessfulVisitsCount;
 			
-			// Calculate percentages for first chart (Total Orders Made)
-			double reservationsPercent = totalOrders > 0 ? (reservationsCount * 100.0 / totalOrders) : 0.0;
-			double waitingListOrdersPercent = totalOrders > 0 ? (waitingListOrdersCount * 100.0 / totalOrders) : 0.0;
+			// Calculate percentages for first chart (Total Visits)
+			double successfulVisitsPercent = totalVisits > 0 ? (successfulVisitsCount * 100.0 / totalVisits) : 0.0;
+			double unsuccessfulVisitsPercent = totalVisits > 0 ? (unsuccessfulVisitsCount * 100.0 / totalVisits) : 0.0;
 			
 			// Calculate percentages for second chart (Waiting List Outcomes)
 			// Total waiting list entries that had an outcome (checkedin or left)
@@ -1656,22 +1666,22 @@ public class mysqlConnection {
 			double checkedInPercent = totalWaitingListOutcomes > 0 ? (checkedInCount * 100.0 / totalWaitingListOutcomes) : 0.0;
 			double leftFromWaitingPercent = totalWaitingListOutcomes > 0 ? (leftFromWaitingCount * 100.0 / totalWaitingListOutcomes) : 0.0;
 			
-			// Format: "reportPeriod|reservationsCount|reservationsPercent|waitingListOrdersCount|waitingListOrdersPercent|totalWaitingList|checkedInCount|checkedInPercent|leftFromWaitingCount|leftFromWaitingPercent|totalOrders|totalWaitingListOutcomes"
+			// Format: "reportPeriod|successfulVisitsCount|successfulVisitsPercent|unsuccessfulVisitsCount|unsuccessfulVisitsPercent|totalWaitingList|checkedInCount|checkedInPercent|leftFromWaitingCount|leftFromWaitingPercent|totalVisits|totalWaitingListOutcomes"
 			String reportString = String.format("%s|%d|%.2f|%d|%.2f|%d|%d|%.2f|%d|%.2f|%d|%d",
 				reportPeriod.toString(),
-				reservationsCount, reservationsPercent,
-				waitingListOrdersCount, waitingListOrdersPercent,
+				successfulVisitsCount, successfulVisitsPercent,
+				unsuccessfulVisitsCount, unsuccessfulVisitsPercent,
 				totalWaitingList,
 				checkedInCount, checkedInPercent,
 				leftFromWaitingCount, leftFromWaitingPercent,
-				totalOrders,
+				totalVisits,
 				totalWaitingListOutcomes
 			);
 			
 			System.out.println("📊 Report Statistics:");
-			System.out.println("   Total Orders Made: " + totalOrders);
-			System.out.println("   From Reservations: " + reservationsCount + " (" + String.format("%.1f", reservationsPercent) + "%)");
-			System.out.println("   From Waiting List: " + waitingListOrdersCount + " (" + String.format("%.1f", waitingListOrdersPercent) + "%)");
+			System.out.println("   Total Visits: " + totalVisits);
+			System.out.println("   Successful Visits: " + successfulVisitsCount + " (" + String.format("%.1f", successfulVisitsPercent) + "%)");
+			System.out.println("   Unsuccessful Visits: " + unsuccessfulVisitsCount + " (" + String.format("%.1f", unsuccessfulVisitsPercent) + "%)");
 			System.out.println("   Total Waiting List Entries: " + totalWaitingList);
 			System.out.println("   Waiting List Outcomes: " + totalWaitingListOutcomes);
 			System.out.println("   Checked In: " + checkedInCount + " (" + String.format("%.1f", checkedInPercent) + "%)");
@@ -1723,7 +1733,7 @@ public class mysqlConnection {
 			String cancelSql = 
 				"UPDATE orders o " +
 				"SET o.status = 'Cancelled by resturant' " +
-				"WHERE o.order_time_date < DATE_SUB(NOW(), INTERVAL 15 MINUTE) " +
+				"WHERE o.order_time_date <= DATE_SUB(NOW(), INTERVAL 15 MINUTE) " +
 				"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid', 'CheckedIN')";
 			
 			try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
@@ -1775,20 +1785,17 @@ public class mysqlConnection {
 	 */
 	private static void processWaitingList() {
 		try {
-			// Get all waiting list entries sorted by priority (P_WAITING first, then WAITING), then by created_at (FIFO)
-			String getWaitingListSql = 
+			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+			
+			// First, get P_WAITING entries (high priority)
+			String getPWaitingListSql = 
 				"SELECT confirmation_code, number_of_guests, phone, email, status " +
 				"FROM waitingentry " +
-				"WHERE status IN ('P_WAITING', 'WAITING') " +
-				"ORDER BY " +
-				"  CASE status " +
-				"    WHEN 'P_WAITING' THEN 1 " +
-				"    WHEN 'WAITING' THEN 2 " +
-				"  END ASC, " +
-				"  created_at ASC";
+				"WHERE status = 'P_WAITING' " +
+				"ORDER BY created_at ASC";
 			
-			List<WaitingListEntry> waitingEntries = new ArrayList<>();
-			try (PreparedStatement stmt = conn.prepareStatement(getWaitingListSql)) {
+			List<WaitingListEntry> pWaitingEntries = new ArrayList<>();
+			try (PreparedStatement stmt = conn.prepareStatement(getPWaitingListSql)) {
 				try (ResultSet rs = stmt.executeQuery()) {
 					while (rs.next()) {
 						WaitingListEntry entry = new WaitingListEntry();
@@ -1797,45 +1804,244 @@ public class mysqlConnection {
 						entry.phone = rs.getString("phone");
 						entry.email = rs.getString("email");
 						entry.status = rs.getString("status");
-						waitingEntries.add(entry);
+						pWaitingEntries.add(entry);
 					}
 				}
 			}
 			
-			if (waitingEntries.isEmpty()) {
-				return; // No one waiting
-			}
-			
-			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
-			
-			// Process each waiting entry
-			for (WaitingListEntry entry : waitingEntries) {
-				boolean hasCapacity = checkCapacityAtTimeByGuests(currentTime, entry.numberOfGuests);
+			// Process P_WAITING entries first
+			boolean pWaitingProcessed = false;
+			for (WaitingListEntry entry : pWaitingEntries) {
+				System.out.println("[DEBUG processWaitingList] Processing P_WAITING entry: confirmation_code=" + entry.confirmationCode + ", numberOfGuests=" + entry.numberOfGuests);
+				// Check if there's already a PENDING order for this confirmation_code (to avoid double-counting)
+				boolean hasPendingOrder = false;
+				try (PreparedStatement checkPendingStmt = conn.prepareStatement(
+						"SELECT COUNT(*) FROM orders WHERE confirmation_code = ? AND status = 'PENDING'")) {
+					checkPendingStmt.setString(1, entry.confirmationCode);
+					try (ResultSet rs = checkPendingStmt.executeQuery()) {
+						if (rs.next() && rs.getInt(1) > 0) {
+							hasPendingOrder = true;
+						}
+					}
+				} catch (SQLException e) {
+					System.err.println("[Waiting List Processor] Error checking for PENDING order: " + e.getMessage());
+				}
+				
+				boolean hasCapacity;
+				if (hasPendingOrder) {
+					// Exclude the existing PENDING order to avoid double-counting
+					hasCapacity = checkCapacityAtTimeExcludingOrderByGuests(currentTime, entry.confirmationCode, entry.numberOfGuests);
+				} else {
+					hasCapacity = checkCapacityAtTimeByGuests(currentTime, entry.numberOfGuests);
+				}
 				
 				if (hasCapacity) {
-					String tableQuery =
-						"SELECT tableID, capacity " +
-						"FROM tables " +
-						"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
-						"ORDER BY capacity ASC " +
-						"LIMIT 1";
+					// Use an atomic UPDATE to reserve a table (only succeeds if table is still AVAILABLE)
+					// This prevents concurrent assignments of the same table
+					// Set both confirmationCode and tableStatus to 'OCCUPIED' so the 2nd query won't find any AVAILABLE tables
+					String reserveTableSql =
+						"UPDATE tables SET confirmationCode = ?, tableStatus = 'OCCUPIED' " +
+						"WHERE tableID = (" +
+						"  SELECT tableID FROM (" +
+						"    SELECT tableID FROM tables " +
+						"    WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+						"    ORDER BY capacity ASC " +
+						"    LIMIT 1" +
+						"  ) AS temp" +
+						") AND tableStatus = 'AVAILABLE'";
 					
 					Integer tableId = null;
+					int rowsUpdated = 0;
 					
-					try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
-						tableStmt.setInt(1, entry.numberOfGuests);
-						try (ResultSet rs = tableStmt.executeQuery()) {
-							if (rs.next()) {
-								tableId = rs.getInt("tableID");
+					try (PreparedStatement reserveStmt = conn.prepareStatement(reserveTableSql)) {
+						reserveStmt.setString(1, entry.confirmationCode);
+						reserveStmt.setInt(2, entry.numberOfGuests);
+						rowsUpdated = reserveStmt.executeUpdate();
+					}
+					
+					// If we successfully reserved a table, get its ID
+					if (rowsUpdated > 0) {
+						String getTableIdSql = "SELECT tableID FROM tables WHERE confirmationCode = ? LIMIT 1";
+						try (PreparedStatement getTableIdStmt = conn.prepareStatement(getTableIdSql)) {
+							getTableIdStmt.setString(1, entry.confirmationCode);
+							try (ResultSet rs = getTableIdStmt.executeQuery()) {
+								if (rs.next()) {
+									tableId = rs.getInt("tableID");
+								}
 							}
 						}
 					}
 					
 					if (tableId != null) {
+						// Table is available - send SMS and create PENDING order
 						try {
-							String orderNumber = entry.confirmationCode;
+							Integer subscriberId = null;
+							String name = null;
+							boolean isSubscriber = false;
 							
-							conn.setAutoCommit(false);
+							if (entry.phone != null || entry.email != null) {
+								String subCheckSql = "SELECT subscriberID, name FROM subscriber WHERE phone = ? OR email = ?";
+								try (PreparedStatement subCheckStmt = conn.prepareStatement(subCheckSql)) {
+									subCheckStmt.setString(1, entry.phone);
+									subCheckStmt.setString(2, entry.email);
+									try (ResultSet subRs = subCheckStmt.executeQuery()) {
+										if (subRs.next()) {
+											subscriberId = subRs.getInt("subscriberID");
+											name = subRs.getString("name");
+											isSubscriber = true;
+										}
+									}
+								}
+							}
+							
+							String customerName = name != null ? name : (entry.email != null ? entry.email : entry.phone);
+							System.out.println("[Waiting List Processor] SMS sent to customer: " + customerName + 
+							                   " - Table " + tableId + " is ready!");
+							
+							// Update waitingentry status to SEATED when SMS is sent
+							try {
+								String updateWaitingSql = "UPDATE waitingentry SET status = 'SEATED' WHERE confirmation_code = ?";
+								try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
+									updateWaiting.setString(1, entry.confirmationCode);
+									updateWaiting.executeUpdate();
+									System.out.println("[Waiting List Processor] Updated waitingentry status to SEATED for confirmation_code: " + entry.confirmationCode);
+								}
+							} catch (SQLException e) {
+								System.err.println("[Waiting List Processor] Error updating waitingentry status: " + e.getMessage());
+								e.printStackTrace();
+							}
+							
+							// Create a new order with status PENDING when SMS is sent (table is available)
+							try {
+								String newOrderSql =
+									"INSERT INTO orders " +
+									"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+									"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+									"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+								
+								try (PreparedStatement newOrderStmt = conn.prepareStatement(newOrderSql)) {
+									newOrderStmt.setObject(1, subscriberId, java.sql.Types.INTEGER);
+									newOrderStmt.setInt(2, entry.numberOfGuests);
+									newOrderStmt.setString(3, entry.confirmationCode);
+									newOrderStmt.setString(4, entry.confirmationCode);
+									newOrderStmt.setTimestamp(5, currentTime);
+									newOrderStmt.setTimestamp(6, currentTime);
+									newOrderStmt.setString(7, "PENDING");
+									newOrderStmt.setBoolean(8, isSubscriber);
+									newOrderStmt.setString(9, entry.email);
+									newOrderStmt.setString(10, entry.phone);
+									newOrderStmt.setString(11, name);
+									newOrderStmt.executeUpdate();
+									System.out.println("[Waiting List Processor] Created new PENDING order for confirmation_code: " + entry.confirmationCode);
+								}
+							} catch (SQLException e) {
+								System.err.println("[Waiting List Processor] Error creating PENDING order: " + e.getMessage());
+								e.printStackTrace();
+							}
+							
+							pWaitingProcessed = true;
+							// Add a small delay to prevent concurrent processing
+							try {
+								Thread.sleep(2000); // 2 seconds delay
+							} catch (InterruptedException e) {
+								Thread.currentThread().interrupt();
+							}
+							break; // Process only one entry per cycle
+						} catch (Exception e) {
+							System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+			
+			// Only process WAITING entries if P_WAITING list was empty or no entry was processed
+			if (!pWaitingProcessed) {
+				// Get WAITING entries (low priority)
+				String getWaitingListSql = 
+					"SELECT confirmation_code, number_of_guests, phone, email, status " +
+					"FROM waitingentry " +
+					"WHERE status = 'WAITING' " +
+					"ORDER BY created_at ASC";
+				
+				List<WaitingListEntry> waitingEntries = new ArrayList<>();
+				try (PreparedStatement stmt = conn.prepareStatement(getWaitingListSql)) {
+					try (ResultSet rs = stmt.executeQuery()) {
+						while (rs.next()) {
+							WaitingListEntry entry = new WaitingListEntry();
+							entry.confirmationCode = rs.getString("confirmation_code");
+							entry.numberOfGuests = rs.getInt("number_of_guests");
+							entry.phone = rs.getString("phone");
+							entry.email = rs.getString("email");
+							entry.status = rs.getString("status");
+							waitingEntries.add(entry);
+						}
+					}
+				}
+				
+				// Process WAITING entries
+				for (WaitingListEntry entry : waitingEntries) {
+					System.out.println("[DEBUG processWaitingList] Processing WAITING entry: confirmation_code=" + entry.confirmationCode + ", numberOfGuests=" + entry.numberOfGuests);
+					// Check if there's already a PENDING order for this confirmation_code (to avoid double-counting)
+					boolean hasPendingOrder = false;
+					try (PreparedStatement checkPendingStmt = conn.prepareStatement(
+							"SELECT COUNT(*) FROM orders WHERE confirmation_code = ? AND status = 'PENDING'")) {
+						checkPendingStmt.setString(1, entry.confirmationCode);
+						try (ResultSet rs = checkPendingStmt.executeQuery()) {
+							if (rs.next() && rs.getInt(1) > 0) {
+								hasPendingOrder = true;
+							}
+						}
+					} catch (SQLException e) {
+						System.err.println("[Waiting List Processor] Error checking for PENDING order: " + e.getMessage());
+					}
+					
+					boolean hasCapacity;
+					if (hasPendingOrder) {
+						// Exclude the existing PENDING order to avoid double-counting
+						hasCapacity = checkCapacityAtTimeExcludingOrderByGuests(currentTime, entry.confirmationCode, entry.numberOfGuests);
+					} else {
+						hasCapacity = checkCapacityAtTimeByGuests(currentTime, entry.numberOfGuests);
+					}
+					
+					if (hasCapacity) {
+						// Use an atomic UPDATE to reserve a table (only succeeds if table is still AVAILABLE)
+						// This prevents concurrent assignments of the same table
+						String reserveTableSql =
+							"UPDATE tables SET confirmationCode = ? " +
+							"WHERE tableID = (" +
+							"  SELECT tableID FROM (" +
+							"    SELECT tableID FROM tables " +
+							"    WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
+							"    ORDER BY capacity ASC " +
+							"    LIMIT 1" +
+							"  ) AS temp" +
+							") AND tableStatus = 'AVAILABLE'";
+						
+						Integer tableId = null;
+						int rowsUpdated = 0;
+						
+						try (PreparedStatement reserveStmt = conn.prepareStatement(reserveTableSql)) {
+							reserveStmt.setString(1, entry.confirmationCode);
+							reserveStmt.setInt(2, entry.numberOfGuests);
+							rowsUpdated = reserveStmt.executeUpdate();
+						}
+						
+						// If we successfully reserved a table, get its ID
+						if (rowsUpdated > 0) {
+							String getTableIdSql = "SELECT tableID FROM tables WHERE confirmationCode = ? LIMIT 1";
+							try (PreparedStatement getTableIdStmt = conn.prepareStatement(getTableIdSql)) {
+								getTableIdStmt.setString(1, entry.confirmationCode);
+								try (ResultSet rs = getTableIdStmt.executeQuery()) {
+									if (rs.next()) {
+										tableId = rs.getInt("tableID");
+									}
+								}
+							}
+						}
+						
+						if (tableId != null) {
+							// Table is available - send SMS and create PENDING order
 							try {
 								Integer subscriberId = null;
 								String name = null;
@@ -1856,95 +2062,62 @@ public class mysqlConnection {
 									}
 								}
 								
-								String insertOrderSql =
-									"INSERT INTO orders " +
-									"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
-									"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
-									"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-								
-								try (PreparedStatement orderStmt = conn.prepareStatement(insertOrderSql)) {
-									orderStmt.setObject(1, subscriberId, java.sql.Types.INTEGER);
-									orderStmt.setInt(2, entry.numberOfGuests);
-									orderStmt.setString(3, entry.confirmationCode);
-									orderStmt.setString(4, orderNumber);
-									orderStmt.setTimestamp(5, currentTime);
-									orderStmt.setTimestamp(6, currentTime);
-									orderStmt.setString(7, "PENDING");
-									orderStmt.setBoolean(8, isSubscriber);
-									orderStmt.setString(9, entry.email);
-									orderStmt.setString(10, entry.phone);
-									orderStmt.setString(11, name);
-									orderStmt.executeUpdate();
-								}
-								
-								String updateOrderSql = "UPDATE orders SET status = ? WHERE confirmation_code = ?";
-								try (PreparedStatement updateOrder = conn.prepareStatement(updateOrderSql)) {
-									updateOrder.setString(1, "CheckedIN");
-									updateOrder.setString(2, entry.confirmationCode);
-									updateOrder.executeUpdate();
-								}
-								
-								String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = ? WHERE tableID = ?";
-								try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
-									updateTable.setString(1, "OCCUPIED");
-									updateTable.setString(2, entry.confirmationCode);
-									updateTable.setInt(3, tableId);
-									updateTable.executeUpdate();
-								}
-								
-								String insertVisitSql =
-									"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
-									"VALUES (?, ?, ?, NOW(), ?)";
-								try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
-									insertVisit.setString(1, orderNumber);
-									insertVisit.setString(2, entry.confirmationCode);
-									insertVisit.setInt(3, tableId);
-									
-									Integer subId = null;
-									if (entry.phone != null || entry.email != null) {
-										String subCheckSql = "SELECT subscriberID FROM subscriber WHERE phone = ? OR email = ?";
-										try (PreparedStatement subCheckStmt = conn.prepareStatement(subCheckSql)) {
-											subCheckStmt.setString(1, entry.phone);
-											subCheckStmt.setString(2, entry.email);
-											try (ResultSet subRs = subCheckStmt.executeQuery()) {
-												if (subRs.next()) {
-													subId = subRs.getInt("subscriberID");
-												}
-											}
-										}
-									}
-									
-									if (subId != null) {
-										insertVisit.setInt(4, subId);
-									} else {
-										insertVisit.setNull(4, java.sql.Types.INTEGER);
-									}
-									
-									insertVisit.executeUpdate();
-								}
-								
-								String updateWaitingSql = "UPDATE waitingentry SET status = 'SEATED' WHERE confirmation_code = ?";
-								try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
-									updateWaiting.setString(1, entry.confirmationCode);
-									updateWaiting.executeUpdate();
-								}
-								
-								conn.commit();
-								conn.setAutoCommit(true);
-								
 								String customerName = name != null ? name : (entry.email != null ? entry.email : entry.phone);
 								System.out.println("[Waiting List Processor] SMS sent to customer: " + customerName + 
 								                   " - Table " + tableId + " is ready!");
 								
-							} catch (SQLException e) {
-								conn.rollback();
-								conn.setAutoCommit(true);
-								System.err.println("[Waiting List Processor] Error processing waiting list entry " + entry.confirmationCode + ": " + e.getMessage());
+								// Update waitingentry status to SEATED when SMS is sent
+								try {
+									String updateWaitingSql = "UPDATE waitingentry SET status = 'SEATED' WHERE confirmation_code = ?";
+									try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
+										updateWaiting.setString(1, entry.confirmationCode);
+										updateWaiting.executeUpdate();
+										System.out.println("[Waiting List Processor] Updated waitingentry status to SEATED for confirmation_code: " + entry.confirmationCode);
+									}
+								} catch (SQLException e) {
+									System.err.println("[Waiting List Processor] Error updating waitingentry status: " + e.getMessage());
+									e.printStackTrace();
+								}
+								
+								// Create a new order with status PENDING when SMS is sent (table is available)
+								try {
+									String newOrderSql =
+										"INSERT INTO orders " +
+										"(subscriber_id, number_of_guests, confirmation_code, order_number, " +
+										"order_time_date, time_date_of_placing_order, status, is_subscriber, email, phone, name) " +
+										"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+									
+									try (PreparedStatement newOrderStmt = conn.prepareStatement(newOrderSql)) {
+										newOrderStmt.setObject(1, subscriberId, java.sql.Types.INTEGER);
+										newOrderStmt.setInt(2, entry.numberOfGuests);
+										newOrderStmt.setString(3, entry.confirmationCode);
+										newOrderStmt.setString(4, entry.confirmationCode);
+										newOrderStmt.setTimestamp(5, currentTime);
+										newOrderStmt.setTimestamp(6, currentTime);
+										newOrderStmt.setString(7, "PENDING");
+										newOrderStmt.setBoolean(8, isSubscriber);
+										newOrderStmt.setString(9, entry.email);
+										newOrderStmt.setString(10, entry.phone);
+										newOrderStmt.setString(11, name);
+										newOrderStmt.executeUpdate();
+										System.out.println("[Waiting List Processor] Created new PENDING order for confirmation_code: " + entry.confirmationCode);
+									}
+								} catch (SQLException e) {
+									System.err.println("[Waiting List Processor] Error creating PENDING order: " + e.getMessage());
+									e.printStackTrace();
+								}
+								
+								// Add a small delay to prevent concurrent processing
+								try {
+									Thread.sleep(2000); // 2 seconds delay
+								} catch (InterruptedException e) {
+									Thread.currentThread().interrupt();
+								}
+								break; // Process only one entry per cycle
+							} catch (Exception e) {
+								System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
 								e.printStackTrace();
 							}
-						} catch (Exception e) {
-							System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
-							e.printStackTrace();
 						}
 					}
 				}
@@ -2075,6 +2248,96 @@ public class mysqlConnection {
 		reminderThread.setDaemon(true);
 		reminderThread.setName("ReminderNotification");
 		reminderThread.start();
+	}
+	
+	/**
+	 * Check for customers who have been sitting at a table for 2 hours or more.
+	 * This method is called periodically by a background thread.
+	 */
+	private static void checkLongSittingCustomers() {
+		try {
+			if (conn == null || conn.isClosed()) {
+				return;
+			}
+			
+			// Query visit table joined with tables to find customers sitting for 2+ hours
+			String sql = "SELECT v.confirmation_code, v.tableID, v.startTime, o.name AS customerName " +
+			             "FROM visit v " +
+			             "INNER JOIN tables t ON v.confirmation_code = t.confirmationCode " +
+			             "LEFT JOIN orders o ON v.confirmation_code = o.confirmation_code " +
+			             "WHERE v.endTime IS NULL " +
+			             "AND v.startTime <= DATE_SUB(NOW(), INTERVAL 2 HOUR) " +
+			             "ORDER BY v.startTime ASC";
+			
+			try (PreparedStatement pstmt = conn.prepareStatement(sql);
+			     ResultSet rs = pstmt.executeQuery()) {
+				
+				boolean foundAny = false;
+				while (rs.next()) {
+					foundAny = true;
+					String confirmationCode = rs.getString("confirmation_code");
+					int tableID = rs.getInt("tableID");
+					java.sql.Timestamp startTime = rs.getTimestamp("startTime");
+					String customerName = rs.getString("customerName");
+					
+					if (customerName == null || customerName.trim().isEmpty()) {
+						customerName = "Unknown";
+					}
+					
+					// Calculate how long they've been sitting
+					long startMillis = startTime.getTime();
+					long currentMillis = System.currentTimeMillis();
+					long sittingMinutes = (currentMillis - startMillis) / (1000 * 60);
+					long sittingHours = sittingMinutes / 60;
+					long remainingMinutes = sittingMinutes % 60;
+					
+					System.out.println("[Long Sitting Check] Customer " + customerName + 
+					                   " (Confirmation: " + confirmationCode + 
+					                   ", Table: " + tableID + 
+					                   ") has been sitting for " + sittingHours + " hours and " + remainingMinutes + " minutes");
+				}
+				
+				if (!foundAny) {
+					// Optional: print that no long-sitting customers were found (comment out if too verbose)
+					// System.out.println("[Long Sitting Check] No customers sitting for 2+ hours");
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("[Long Sitting Check] Database error: " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			System.err.println("[Long Sitting Check] Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Start a background thread that periodically checks for customers who have been sitting for 2+ hours.
+	 * The thread runs every 5 minutes to check for long-sitting customers.
+	 */
+	private static void startLongSittingCheckThread() {
+		Thread longSittingThread = new Thread(() -> {
+			while (true) {
+				try {
+					Thread.sleep(300000); // 5 minutes (300000 milliseconds)
+					if (conn != null && !conn.isClosed()) {
+						checkLongSittingCustomers();
+					}
+				} catch (InterruptedException e) {
+					break;
+				} catch (SQLException e) {
+					System.err.println("[Long Sitting Check Thread] Database connection error: " + e.getMessage());
+					e.printStackTrace();
+				} catch (Exception e) {
+					System.err.println("[Long Sitting Check Thread] Unexpected error: " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+		});
+		
+		longSittingThread.setDaemon(true);
+		longSittingThread.setName("LongSittingCheck");
+		longSittingThread.start();
 	}
 
 	/**
@@ -2327,11 +2590,36 @@ public class mysqlConnection {
 							return "CheckInFailed:Reservation status is not PENDING. Current status: " + (status != null ? status : "unknown");
 						}
 						
+						orderDateTime = rs.getTimestamp("order_time_date");
+						
+						// Check if reservation date matches today's date
+						if (orderDateTime != null) {
+							java.time.LocalDate reservationDate = orderDateTime.toLocalDateTime().toLocalDate();
+							java.time.LocalDate today = java.time.LocalDate.now();
+							if (!reservationDate.equals(today)) {
+								return "CheckInFailed:Reservation date does not match today's date. Reservation date: " + reservationDate + ", Today: " + today;
+							}
+							
+							// Check if customer is 15+ minutes late - if so, cancel reservation and deny check-in
+							java.time.Instant reservationTime = orderDateTime.toInstant();
+							java.time.Instant currentTime = java.time.Instant.now();
+							long delayMinutes = java.time.Duration.between(reservationTime, currentTime).toMinutes();
+							
+							if (delayMinutes >= 15) {
+								// Cancel the reservation
+								String cancelSql = "UPDATE orders SET status = 'Cancelled by resturant' WHERE confirmation_code = ?";
+								try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
+									cancelStmt.setString(1, confirmationCode);
+									cancelStmt.executeUpdate();
+								}
+								return "CheckInFailed:Reservation cancelled - Customer is " + delayMinutes + " minutes late. Reservations are automatically cancelled if customer is 15+ minutes late.";
+							}
+						}
+						
 						orderNumber = rs.getString("order_number");
 						guests = rs.getInt("number_of_guests");
 						email = rs.getString("email");
 						phone = rs.getString("phone");
-						orderDateTime = rs.getTimestamp("order_time_date");
 						Object subIdObj = rs.getObject("subscriber_id");
 						if (subIdObj != null) {
 							subscriberId = rs.getInt("subscriber_id");
@@ -2992,6 +3280,8 @@ public class mysqlConnection {
 		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
 		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
 
+		System.out.println("[DEBUG checkCapacityAtTimeByGuests] Called with numberOfGuests=" + numberOfGuests + ", requestedDateTime=" + requestedDateTime);
+
 		try {
 			// Get all tables sorted by capacity (ascending) - we'll try to assign smallest suitable table first
 			List<Integer> allTables = new ArrayList<>();
@@ -3010,10 +3300,10 @@ public class mysqlConnection {
 				return false; // No tables available
 			}
 			
-			// Get all overlapping reservations with their number_of_guests
+			// Get all overlapping reservations with their number_of_guests and confirmation_code for debugging
 			// A reservation overlaps if: it starts before the requested reservation ends AND it ends after the requested reservation starts
 			String getReservationsSql =
-					"SELECT number_of_guests " +
+					"SELECT number_of_guests, confirmation_code, status " +
 					"FROM orders o " +
 					"WHERE o.order_time_date < ? " +
 					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
@@ -3021,15 +3311,23 @@ public class mysqlConnection {
 					"ORDER BY number_of_guests DESC";
 			
 			List<Integer> overlappingReservations = new ArrayList<>();
+			List<String> overlappingConfirmations = new ArrayList<>();
 			try (PreparedStatement resStmt = conn.prepareStatement(getReservationsSql)) {
 				resStmt.setTimestamp(1, reservationEnd);
 				resStmt.setTimestamp(2, requestedDateTime);
 				try (ResultSet rs = resStmt.executeQuery()) {
 					while (rs.next()) {
-						overlappingReservations.add(rs.getInt("number_of_guests"));
+						int guests = rs.getInt("number_of_guests");
+						String confCode = rs.getString("confirmation_code");
+						String status = rs.getString("status");
+						overlappingReservations.add(guests);
+						overlappingConfirmations.add(confCode + "(" + status + ")");
 					}
 				}
 			}
+			
+			System.out.println("[DEBUG checkCapacityAtTimeByGuests] Found " + overlappingReservations.size() + " overlapping reservations: " + overlappingConfirmations);
+			System.out.println("[DEBUG checkCapacityAtTimeByGuests] Overlapping reservation guests: " + overlappingReservations);
 			
 			// Simulate table assignment using greedy algorithm:
 			// Assign each reservation (including the new one) to the smallest table that can accommodate it
@@ -3037,6 +3335,8 @@ public class mysqlConnection {
 			List<Integer> reservationsToAssign = new ArrayList<>(overlappingReservations);
 			reservationsToAssign.add(numberOfGuests); // Add the new reservation
 			reservationsToAssign.sort((a, b) -> Integer.compare(b, a)); // Sort descending
+			
+			System.out.println("[DEBUG checkCapacityAtTimeByGuests] After adding new reservation (" + numberOfGuests + " guests), total reservations to assign: " + reservationsToAssign);
 			
 			// Track which tables are already assigned
 			boolean[] tablesAssigned = new boolean[allTables.size()];
@@ -3698,15 +3998,15 @@ public class mysqlConnection {
 	}
 	
 	/**
-	 * Removes a waiting list entry by phone or email.
+	 * Updates a waiting list entry status to 'left' by phone or email.
 	 * 
 	 * @param phoneOrEmail The phone number or email to identify the entry
 	 * @return "WaitingListExited" if successful, "WaitingListExitFailed" otherwise
 	 */
 	public static String exitWaitingList(String phoneOrEmail) {
 		try {
-			// Delete entry by matching phone or email (both WAITING and P_WAITING statuses)
-			String sql = "DELETE FROM waitingentry WHERE (phone = ? OR email = ?) AND status IN ('WAITING', 'P_WAITING')";
+			// Update entry status to 'left' by matching phone or email (both WAITING and P_WAITING statuses)
+			String sql = "UPDATE waitingentry SET status = 'left' WHERE (phone = ? OR email = ?) AND status IN ('WAITING', 'P_WAITING' 'SEATED')";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
 				pstmt.setString(1, phoneOrEmail);
@@ -3950,12 +4250,14 @@ public class mysqlConnection {
 
 	/**
 	 * Get opening hours for a specific date from the opening_hours table.
+	 * First checks for specific_date match, then checks for permanent hours (is_permanent=1, specific_date IS NULL).
 	 * @param date The date to check (format: yyyy-MM-dd)
 	 * @return Opening hours string (format: "HH:mm-HH:mm") or null if not found or default hours
 	 */
 	public static String getOpeningHours(String date) {
 		try {
-			String sql = "SELECT opening_time, closing_time FROM opening_hours WHERE specific_date = ?";
+			// First, try to find specific date entry
+			String sql = "SELECT opening_time, closing_time FROM opening_hours WHERE specific_date = ? AND is_active = true";
 			try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 				stmt.setString(1, date);
 				try (ResultSet rs = stmt.executeQuery()) {
@@ -3971,9 +4273,39 @@ public class mysqlConnection {
 					}
 				}
 			}
+			
+			// If no specific date entry found, check for permanent hours
+			// Get the day of week from the date
+			java.time.LocalDate localDate = java.time.LocalDate.parse(date);
+			java.time.DayOfWeek dayOfWeekEnum = localDate.getDayOfWeek();
+			String dayOfWeek = dayOfWeekEnum.toString();
+			// Convert Java DayOfWeek to database format (e.g., MONDAY -> Monday)
+			String dayFormatted = dayOfWeek.charAt(0) + dayOfWeek.substring(1).toLowerCase();
+			
+			String sqlPermanent = "SELECT opening_time, closing_time FROM opening_hours WHERE day_of_week = ? AND is_permanent = 1 AND specific_date IS NULL AND is_active = true";
+			try (PreparedStatement stmt = conn.prepareStatement(sqlPermanent)) {
+				stmt.setString(1, dayFormatted);
+				try (ResultSet rs = stmt.executeQuery()) {
+					if (rs.next()) {
+						java.sql.Time openingTime = rs.getTime("opening_time");
+						java.sql.Time closingTime = rs.getTime("closing_time");
+						
+						if (openingTime != null && closingTime != null) {
+							String openingTimeStr = openingTime.toString().substring(0, 5);
+							String closingTimeStr = closingTime.toString().substring(0, 5);
+							return openingTimeStr + "-" + closingTimeStr;
+						}
+					}
+				}
+			}
+			
 			return null;
 		} catch (SQLException e) {
 			System.err.println("Error getting opening hours: " + e.getMessage());
+			e.printStackTrace();
+			return null;
+		} catch (Exception e) {
+			System.err.println("Error parsing date in getOpeningHours: " + e.getMessage());
 			e.printStackTrace();
 			return null;
 		}

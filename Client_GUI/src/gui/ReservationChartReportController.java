@@ -255,16 +255,16 @@ public class ReservationChartReportController {
         
         try {
             String reportPeriod = parts[0];
-            int reservationsCount = Integer.parseInt(parts[1]);
-            double reservationsPercent = Double.parseDouble(parts[2]);
-            int waitingListOrdersCount = Integer.parseInt(parts[3]);
-            double waitingListOrdersPercent = Double.parseDouble(parts[4]);
+            int successfulVisitsCount = Integer.parseInt(parts[1]);
+            double successfulVisitsPercent = Double.parseDouble(parts[2]);
+            int unsuccessfulVisitsCount = Integer.parseInt(parts[3]);
+            double unsuccessfulVisitsPercent = Double.parseDouble(parts[4]);
             int totalWaitingList = Integer.parseInt(parts[5]);
             int checkedInCount = Integer.parseInt(parts[6]);
             double checkedInPercent = Double.parseDouble(parts[7]);
             int leftFromWaitingCount = Integer.parseInt(parts[8]);
             double leftFromWaitingPercent = Double.parseDouble(parts[9]);
-            int totalOrders = Integer.parseInt(parts[10]);
+            int totalVisits = Integer.parseInt(parts[10]);
             int totalWaitingListOutcomes = Integer.parseInt(parts[11]);
             
             // System.out.println("📊 Parsed values:");
@@ -296,20 +296,20 @@ public class ReservationChartReportController {
             waitingListChart.setLegendVisible(true);
             waitingListChart.setStartAngle(90);
             
-            // Create Orders Breakdown Chart (Total Orders Made)
-            // Shows: Reservations vs Waiting List Orders (checkedin only)
+            // Create Visits Breakdown Chart (Total Visits)
+            // Shows: Successful Visits (Paid) vs Unsuccessful Visits (Not Paid)
             ObservableList<PieChart.Data> ordersData = FXCollections.observableArrayList();
-            if (reservationsPercent > 0) {
-                ordersData.add(new PieChart.Data("From Reservations (" + String.format("%.1f", reservationsPercent) + "%)", reservationsPercent));
+            if (successfulVisitsPercent > 0) {
+                ordersData.add(new PieChart.Data("Successful Visits (" + String.format("%.1f", successfulVisitsPercent) + "%)", successfulVisitsPercent));
             }
-            if (waitingListOrdersPercent > 0) {
-                ordersData.add(new PieChart.Data("From Waiting List (" + String.format("%.1f", waitingListOrdersPercent) + "%)", waitingListOrdersPercent));
+            if (unsuccessfulVisitsPercent > 0) {
+                ordersData.add(new PieChart.Data("Unsuccessful Visits (" + String.format("%.1f", unsuccessfulVisitsPercent) + "%)", unsuccessfulVisitsPercent));
             }
             if (ordersData.isEmpty()) {
                 ordersData.add(new PieChart.Data("No Data", 1));
             }
             ordersChart.setData(ordersData);
-            ordersChart.setTitle("Total Orders Made");
+            ordersChart.setTitle("Total Visits");
             // System.out.println("✅ Orders Chart: " + ordersData.size() + " slices");
             
             // Create Waiting List Outcomes Chart (Lost Orders from Waiting List)
@@ -330,18 +330,16 @@ public class ReservationChartReportController {
             
             // Update summary label
             String summary = String.format(
-                "Total Orders Made: %d\n" +
-                "From Reservations: %d (%.1f%%)\n" +
-                "From Waiting List: %d (%.1f%%)\n" +
+                "Total Visits: %d\n" +
+                "Successful Visits: %d (%.1f%%)\n" +
+                "Unsuccessful Visits: %d (%.1f%%)\n" +
                 "\nTotal Waiting List Entries: %d\n" +
-                "Waiting List Outcomes: %d\n" +
                 "Checked In: %d (%.1f%%)\n" +
                 "Left: %d (%.1f%%)",
-                totalOrders,
-                reservationsCount, reservationsPercent,
-                waitingListOrdersCount, waitingListOrdersPercent,
+                totalVisits,
+                successfulVisitsCount, successfulVisitsPercent,
+                unsuccessfulVisitsCount, unsuccessfulVisitsPercent,
                 totalWaitingList,
-                totalWaitingListOutcomes,
                 checkedInCount, checkedInPercent,
                 leftFromWaitingCount, leftFromWaitingPercent
             );

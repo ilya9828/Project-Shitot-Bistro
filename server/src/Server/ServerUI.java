@@ -13,13 +13,25 @@ public class ServerUI extends Application {
 	public static String errMsg = "";
 
 	public static void main(String args[]) throws Exception {
-		launch(args);
+		try {
+			launch(args);
+		} catch (Exception e) {
+			System.err.println("Error starting server application: " + e.getMessage());
+			e.printStackTrace();
+			throw e;
+		}
 	}
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		ServerPortFrameController aFrame = new ServerPortFrameController();
-		aFrame.start(primaryStage);
+		try {
+			ServerPortFrameController aFrame = new ServerPortFrameController();
+			aFrame.start(primaryStage);
+		} catch (Exception e) {
+			System.err.println("Error initializing server UI: " + e.getMessage());
+			e.printStackTrace();
+			throw e;
+		}
 	}
 
 	public static void runServer(String p) throws Exception {

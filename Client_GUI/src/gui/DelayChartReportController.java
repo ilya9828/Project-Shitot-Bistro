@@ -248,7 +248,7 @@ public class DelayChartReportController {
 
     /**
      * Updates the charts with the report data.
-     * Expected format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|cancelledCount|cancelledPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
+     * Expected format: "reportPeriod|onTimeCount|onTimePercent|late1to14Count|late1to14Percent|late15PlusCount|late15PlusPercent|mealUnder2HrCount|mealUnder2HrPercent|mealOver2HrCount|mealOver2HrPercent|totalClients"
      */
     private void updateCharts(List<String> reportData) {
         if (reportData == null || reportData.isEmpty()) {
@@ -271,8 +271,8 @@ public class DelayChartReportController {
         String[] parts = data.split("\\|");
         
         // System.out.println("📊 Split into " + parts.length + " parts");
-        if (parts.length < 14) {
-            // System.err.println("❌ Invalid report data format. Expected 14 parts, got " + parts.length);
+        if (parts.length < 12) {
+            // System.err.println("❌ Invalid report data format. Expected 12 parts, got " + parts.length);
             // System.err.println("   Data: " + data);
             // for (int i = 0; i < parts.length; i++) {
             //     System.err.println("   Part[" + i + "]: " + parts[i]);
@@ -288,13 +288,11 @@ public class DelayChartReportController {
             double late1to14Percent = Double.parseDouble(parts[4]);
             int late15PlusCount = Integer.parseInt(parts[5]);
             double late15PlusPercent = Double.parseDouble(parts[6]);
-            int cancelledCount = Integer.parseInt(parts[7]);
-            double cancelledPercent = Double.parseDouble(parts[8]);
-            int mealUnder2HrCount = Integer.parseInt(parts[9]);
-            double mealUnder2HrPercent = Double.parseDouble(parts[10]);
-            int mealOver2HrCount = Integer.parseInt(parts[11]);
-            double mealOver2HrPercent = Double.parseDouble(parts[12]);
-            int totalClients = Integer.parseInt(parts[13]);
+            int mealUnder2HrCount = Integer.parseInt(parts[7]);
+            double mealUnder2HrPercent = Double.parseDouble(parts[8]);
+            int mealOver2HrCount = Integer.parseInt(parts[9]);
+            double mealOver2HrPercent = Double.parseDouble(parts[10]);
+            int totalClients = Integer.parseInt(parts[11]);
             
             // System.out.println("📊 Parsed values:");
             // System.out.println("   Total Clients: " + totalClients);
@@ -351,12 +349,17 @@ public class DelayChartReportController {
             // System.out.println("✅ Arrival Status Chart: " + arrivalStatusData.size() + " slices");
             
             // Create Late Arrivals Breakdown Chart (1-14 mins vs >15 mins)
+            // Calculate percentages out of only late clients (excluding on-time)
+            int totalLateClients = late1to14Count + late15PlusCount;
+            double late1to14PercentOfLate = totalLateClients > 0 ? (late1to14Count * 100.0 / totalLateClients) : 0.0;
+            double late15PlusPercentOfLate = totalLateClients > 0 ? (late15PlusCount * 100.0 / totalLateClients) : 0.0;
+            
             ObservableList<PieChart.Data> lateArrivalsData = FXCollections.observableArrayList();
-            if (late1to14Percent > 0) {
-                lateArrivalsData.add(new PieChart.Data("Late 1-14 mins (" + String.format("%.1f", late1to14Percent) + "%)", late1to14Percent));
+            if (late1to14PercentOfLate > 0) {
+                lateArrivalsData.add(new PieChart.Data("Late 1-14 mins (" + String.format("%.1f", late1to14PercentOfLate) + "%)", late1to14PercentOfLate));
             }
-            if (late15PlusPercent > 0) {
-                lateArrivalsData.add(new PieChart.Data("Late >15 mins - Cancelled (" + String.format("%.1f", late15PlusPercent) + "%)", late15PlusPercent));
+            if (late15PlusPercentOfLate > 0) {
+                lateArrivalsData.add(new PieChart.Data("Late >15 mins - Cancelled (" + String.format("%.1f", late15PlusPercentOfLate) + "%)", late15PlusPercentOfLate));
             }
             if (lateArrivalsData.isEmpty()) {
                 // If all values are 0, add a placeholder
@@ -383,19 +386,20 @@ public class DelayChartReportController {
             // System.out.println("✅ Meal Duration Chart: " + mealDurationData.size() + " slices");
             
             // Update summary label
+            // Note: late1to14PercentOfLate and late15PlusPercentOfLate are already calculated above (out of only late clients)
             String summary = String.format(
                 "Total Clients: %d\n" +
                 "On Time: %d (%.1f%%)\n" +
+                "Late: %d (%.1f%%)\n" +
                 "Late 1-14 mins: %d (%.1f%%)\n" +
                 "Late >15 mins: %d (%.1f%%)\n" +
-                "Cancelled by Restaurant: %d (%.1f%%)\n" +
                 "Meals Under 2 Hours: %d (%.1f%%)\n" +
                 "Meals Over 2 Hours: %d (%.1f%%)",
                 totalClients,
                 onTimeCount, onTimePercent,
-                late1to14Count, late1to14Percent,
-                late15PlusCount, late15PlusPercent,
-                cancelledCount, cancelledPercent,
+                totalLateClients, totalLatePercent,
+                late1to14Count, late1to14PercentOfLate,
+                late15PlusCount, late15PlusPercentOfLate,
                 mealUnder2HrCount, mealUnder2HrPercent,
                 mealOver2HrCount, mealOver2HrPercent
             );

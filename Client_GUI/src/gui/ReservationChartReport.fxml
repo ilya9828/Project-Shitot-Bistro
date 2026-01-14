@@ -27,9 +27,9 @@
             <VBox spacing="15" alignment="CENTER" style="-fx-padding: 5px;">
                 <!-- Top row: Two charts side by side -->
                 <HBox spacing="25" alignment="CENTER">
-                    <!-- Total Orders Made Chart - Separate Box -->
+                    <!-- Total Visits Chart - Separate Box -->
                     <VBox spacing="6" alignment="CENTER" prefWidth="280" minWidth="280" maxWidth="280">
-                        <Label text="Total Orders Made" style="-fx-text-fill: #fbbf24; -fx-font-size: 13px; -fx-font-weight: bold;" />
+                        <Label text="Total Visits" style="-fx-text-fill: #fbbf24; -fx-font-size: 13px; -fx-font-weight: bold;" />
                         <VBox alignment="CENTER" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240">
                             <PieChart fx:id="ordersChart" prefWidth="240" prefHeight="240" minWidth="240" minHeight="240" maxWidth="240" maxHeight="240" />
                         </VBox>

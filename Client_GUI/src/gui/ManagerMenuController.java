@@ -28,11 +28,9 @@ public class ManagerMenuController extends StaffMenuController {
 		try {
 			FXMLLoader loader = new FXMLLoader();
 			
-			// Hide current window
+			// Get current window (don't hide it)
 			Stage currentStage = (Stage) delayChartReportButton.getScene().getWindow();
-			currentStage.hide();
 			
-			Stage primaryStage = new Stage();
 			Parent root = loader.load(getClass().getResource("/gui/DelayChartReport.fxml").openStream());
 			
 			// Controller will request data itself in initialize() method
@@ -42,24 +40,8 @@ public class ManagerMenuController extends StaffMenuController {
 			if (getClass().getResource("/gui/DelayChartReport.css") != null) {
 				scene.getStylesheets().add(getClass().getResource("/gui/DelayChartReport.css").toExternalForm());
 			}
-			primaryStage.setTitle("Delay Chart Report");
-			primaryStage.setScene(scene);
-			
-			// Handle window close
-			primaryStage.setOnCloseRequest(closeEvent -> {
-				try {
-					if (ClientUI.chat != null) {
-						java.util.HashMap<String, String> disconnectMsg = new java.util.HashMap<>();
-						disconnectMsg.put("Disconnect", "");
-						ClientUI.chat.accept(disconnectMsg);
-						Thread.sleep(200);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			});
-			
-			primaryStage.show();
+			currentStage.setTitle("Delay Chart Report");
+			currentStage.setScene(scene);
 		} catch (Exception e) {
 			System.err.println("Failed to load DelayChartReport screen: " + e.getMessage());
 			e.printStackTrace();
@@ -74,11 +56,9 @@ public class ManagerMenuController extends StaffMenuController {
 		try {
 			FXMLLoader loader = new FXMLLoader();
 			
-			// Hide current window
+			// Get current window (don't hide it)
 			Stage currentStage = (Stage) reservationChartInfoButton.getScene().getWindow();
-			currentStage.hide();
 			
-			Stage primaryStage = new Stage();
 			Parent root = loader.load(getClass().getResource("/gui/ReservationChartReport.fxml").openStream());
 			
 			// Controller will request data itself in initialize() method
@@ -87,24 +67,8 @@ public class ManagerMenuController extends StaffMenuController {
 			if (getClass().getResource("/gui/ReservationChartReport.css") != null) {
 				scene.getStylesheets().add(getClass().getResource("/gui/ReservationChartReport.css").toExternalForm());
 			}
-			primaryStage.setTitle("Reservation Chart Report");
-			primaryStage.setScene(scene);
-			
-			// Handle window close
-			primaryStage.setOnCloseRequest(closeEvent -> {
-				try {
-					if (ClientUI.chat != null) {
-						java.util.HashMap<String, String> disconnectMsg = new java.util.HashMap<>();
-						disconnectMsg.put("Disconnect", "");
-						ClientUI.chat.accept(disconnectMsg);
-						Thread.sleep(200);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			});
-			
-			primaryStage.show();
+			currentStage.setTitle("Reservation Chart Report");
+			currentStage.setScene(scene);
 		} catch (Exception e) {
 			System.err.println("Failed to load ReservationChartReport screen: " + e.getMessage());
 			e.printStackTrace();

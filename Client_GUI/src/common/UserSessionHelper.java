@@ -1,9 +1,7 @@
 package common;
 
 import java.io.IOException;
-import java.util.HashMap;
 
-import client.ClientUI;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -190,30 +188,15 @@ public class UserSessionHelper {
             menuTitle = "Guest Menu";
         }
         
+        // Get current window (don't create a new one)
+        Stage currentStage = (Stage) eventSource.getScene().getWindow();
+        
         FXMLLoader loader = new FXMLLoader(UserSessionHelper.class.getResource(menuFxml));
         Parent root = loader.load();
-        Stage stage = new Stage();
         Scene scene = new Scene(root);
         scene.getStylesheets().add(UserSessionHelper.class.getResource(menuCss).toExternalForm());
-        stage.setScene(scene);
-        stage.setTitle(menuTitle);
-        
-        // Handle window close
-        stage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        stage.show();
-        eventSource.getScene().getWindow().hide();
+        currentStage.setTitle(menuTitle);
+        currentStage.setScene(scene);
     }
 }
 

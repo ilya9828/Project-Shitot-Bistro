@@ -103,30 +103,25 @@ public abstract class BaseMenuController {
     protected void handleBackToLogin() {
         try {
             UserSessionHelper.reset();
+            
+            // Get current window
+            Stage currentStage = null;
+            if (backToLoginButton != null && backToLoginButton.getScene() != null) {
+                currentStage = (Stage) backToLoginButton.getScene().getWindow();
+            } else if (reserveTableButton != null && reserveTableButton.getScene() != null) {
+                currentStage = (Stage) reserveTableButton.getScene().getWindow();
+            }
+            
+            if (currentStage == null) {
+                return; // Can't navigate if we can't find the window
+            }
+            
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/UserIdentification.fxml"));
             Parent root = loader.load();
-
-            Stage stage = new Stage();
             Scene scene = new Scene(root);
             scene.getStylesheets().add(getClass().getResource("/gui/UserIdentification.css").toExternalForm());
-            stage.setScene(scene);
-            stage.setTitle("User Identification");
-
-            stage.setOnCloseRequest(closeEvent -> {
-                try {
-                    if (ClientUI.chat != null) {
-                        HashMap<String, String> disconnectMsg = new HashMap<>();
-                        disconnectMsg.put("Disconnect", "");
-                        ClientUI.chat.accept(disconnectMsg);
-                        Thread.sleep(200);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-
-            stage.show();
-            closeCurrentWindow();
+            currentStage.setTitle("User Identification");
+            currentStage.setScene(scene);
         } catch (IOException e) {
             System.err.println("Failed to load User Identification screen: " + e.getMessage());
             e.printStackTrace();
@@ -176,8 +171,14 @@ public abstract class BaseMenuController {
      * Closes the current window.
      */
     protected void closeCurrentWindow() {
-        Stage stage = (Stage) reserveTableButton.getScene().getWindow();
-        stage.close();
+        // Try to get the window from backToLoginButton first, then reserveTableButton
+        if (backToLoginButton != null && backToLoginButton.getScene() != null) {
+            Stage stage = (Stage) backToLoginButton.getScene().getWindow();
+            stage.close();
+        } else if (reserveTableButton != null && reserveTableButton.getScene() != null) {
+            Stage stage = (Stage) reserveTableButton.getScene().getWindow();
+            stage.close();
+        }
     }
 
     /**
