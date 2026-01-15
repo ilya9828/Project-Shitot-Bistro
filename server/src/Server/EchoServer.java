@@ -434,6 +434,20 @@ public class EchoServer extends AbstractServer {
 			}
 			flag++;
 			break;
+		case GetSubscriberTodayConfirmationCodes:
+			try {
+				String subscriberIDForCodes = infoFromUser.get(menuChoiceString);
+				System.out.println("Getting today confirmation codes for subscriber: " + subscriberIDForCodes);
+				List<String> confirmationCodes = mysqlConnection.GetSubscriberTodayConfirmationCodes(subscriberIDForCodes);
+				System.out.println("Found " + confirmationCodes.size() + " confirmation codes for today");
+				this.sendToAllClients(confirmationCodes);
+			} catch (Exception e) {
+				System.err.println("Exception in GetSubscriberTodayConfirmationCodes case: " + e.getMessage());
+				e.printStackTrace();
+				this.sendToAllClients(new ArrayList<>()); // Send empty list on error
+			}
+			flag++;
+			break;
 		//This case is loading the requested ID from the DB and sending to the client.
 		// FIX: Changed to use confirmation_code (String) instead of order_number (int)
 		case LoadOrders:

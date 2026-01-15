@@ -20,11 +20,12 @@ public class ChatClient extends AbstractClient {
 	public static List<String> waitingListTable = new ArrayList<String>();
 	public static List<String> currentReservationsTable = new ArrayList<String>();
 	public static List<String> subInfoTable = new ArrayList<String>();
+	public static List<String> subscriberConfirmationCodes = new ArrayList<String>();
 	public static List<String> delayChartReportData = new ArrayList<String>();
 	public static List<String> reservationChartReportData = new ArrayList<String>();
 	public static String fromserverString = new String();
 	public static boolean awaitResponse = false;
-	public static String expectedListType = ""; // Track which list type we're expecting: "orders", "occupiedTables", "waitingList", "currentReservations", "subInfo", "delayChartReport", "reservationChartReport"
+	public static String expectedListType = ""; // Track which list type we're expecting: "orders", "occupiedTables", "waitingList", "currentReservations", "subInfo", "subscriberConfirmationCodes", "delayChartReport", "reservationChartReport"
 
 	public ChatClient(String host, int port, ChatIF clientUI) throws IOException {
 		super(host, port); // Call the superclass constructor
@@ -54,6 +55,8 @@ public class ChatClient extends AbstractClient {
 					currentReservationsTable = receivedList;
 				} else if (expectedListType.equals("subInfo")) {
 					subInfoTable = receivedList;
+				} else if (expectedListType.equals("subscriberConfirmationCodes")) {
+					subscriberConfirmationCodes = receivedList;
 				} else if (expectedListType.equals("delayChartReport")) {
 					delayChartReportData = receivedList;
 					// System.out.println("✅ Received delay chart report data: " + (receivedList != null ? receivedList.size() + " items" : "null"));

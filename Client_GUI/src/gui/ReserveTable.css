@@ -111,6 +111,33 @@
     -fx-background-radius: 8px;
 }
 
+/* Date Picker Popup - Month and Year selector */
+.date-picker-popup .month-year-pane {
+    -fx-background-color: white;
+}
+
+.date-picker-popup .month-year-pane .label {
+    -fx-text-fill: black;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.date-picker-popup .spinner .label {
+    -fx-text-fill: black;
+}
+
+.date-picker-popup .spinner .button {
+    -fx-text-fill: black;
+}
+
+.date-picker-popup .month-year-pane .arrow-button {
+    -fx-text-fill: black;
+}
+
+.date-picker-popup .month-year-pane .arrow-button .arrow {
+    -fx-fill: black;
+}
+
 /* ComboBox */
 .combo-box {
     -fx-background-color: white;

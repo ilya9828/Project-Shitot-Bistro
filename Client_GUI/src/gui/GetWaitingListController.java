@@ -1,10 +1,8 @@
 package gui;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 
-import client.ClientUI;
 import common.UserSessionHelper;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -20,9 +18,6 @@ import javafx.scene.control.TableView;
  */
 public class GetWaitingListController {
 
-    @FXML
-    private Button btnExit = null;
-    
     @FXML
     private Button btnBack = null;
 
@@ -104,17 +99,5 @@ public class GetWaitingListController {
         waitingListTable.setItems(FXCollections.observableArrayList(waitingEntries));
     }
     
-    /**
-     * This method is for the exit button sending a message to the server that now we are disconnecting,
-     * closing the GUI and the connection for the server.
-     */
-    @FXML
-    public void getExitBtn(ActionEvent event) throws Exception {
-        System.out.println("Disconnecting from the Server and ending the program.");
-        HashMap<String, String> EndingConnections = new HashMap<String, String>();
-        EndingConnections.put("Disconnect", "");
-        ClientUI.chat.accept(EndingConnections);
-        System.exit(0);
-    }
 }
 

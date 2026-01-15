@@ -36,7 +36,8 @@ public enum UserSelect {
     SubInfo("Sub Info"),
     ValidateUserID("Validate User ID"),
     DelayChartReport("Delay Chart Report"),
-    ReservationChartReport("Reservation Chart Report");
+    ReservationChartReport("Reservation Chart Report"),
+    GetSubscriberTodayConfirmationCodes("Get Subscriber Today Confirmation Codes");
 
     private final String displayName;
 

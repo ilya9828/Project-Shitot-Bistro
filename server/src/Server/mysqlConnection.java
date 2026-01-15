@@ -990,6 +990,56 @@ public class mysqlConnection {
 	}
 
 	/**
+	 * Get confirmation codes for a subscriber's reservations today
+	 * @param subscriberID - the subscriber ID
+	 * @return List of confirmation codes as strings for today's reservations
+	 */
+	public static List<String> GetSubscriberTodayConfirmationCodes(String subscriberID) {
+		List<String> confirmationCodes = new ArrayList<>();
+		
+		if (conn == null) {
+			System.err.println("❌ Database connection is null!");
+			return confirmationCodes;
+		}
+
+		try {
+			// Get confirmation codes for today's reservations where subscriber_id matches
+			String sql = "SELECT confirmation_code, order_time_date " +
+			             "FROM orders " +
+			             "WHERE subscriber_id = ? " +
+			             "AND DATE(order_time_date) = CURDATE() " +
+			             "AND status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid', 'CheckedIN') " +
+			             "ORDER BY order_time_date ASC";
+			
+			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+				try {
+					int subscriberIdInt = Integer.parseInt(subscriberID);
+					pstmt.setInt(1, subscriberIdInt);
+				} catch (NumberFormatException e) {
+					System.err.println("❌ Invalid subscriber ID format: " + subscriberID);
+					return confirmationCodes;
+				}
+				try (ResultSet rs = pstmt.executeQuery()) {
+					while (rs.next()) {
+						String confirmation_code = rs.getString("confirmation_code");
+						if (confirmation_code != null && !confirmation_code.trim().isEmpty()) {
+							confirmationCodes.add(confirmation_code);
+						}
+					}
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("❌ Error getting subscriber today confirmation codes");
+			System.err.println("SQL State: " + e.getSQLState());
+			System.err.println("Error Code: " + e.getErrorCode());
+			System.err.println("Message: " + e.getMessage());
+			e.printStackTrace();
+		}
+		
+		return confirmationCodes;
+	}
+
+	/**
 	 * Validates a user ID by checking if it exists in subscriber, staffids, or managerids tables
 	 * @param userID - the user ID to validate
 	 * @return "Subscriber" if found in subscriber table, "Staff" if found in staffids, "Manager" if found in managerids, "Invalid" otherwise
@@ -2179,7 +2229,7 @@ public class mysqlConnection {
 	private static void sendReminderNotifications() {
 		try {
 			String reminderSql = 
-				"SELECT confirmation_code, order_time_date, name, email, phone, number_of_guests " +
+				"SELECT confirmation_code, order_time_date, name, email, phone, number_of_guests, is_subscriber " +
 				"FROM orders " +
 				"WHERE order_time_date >= DATE_ADD(NOW(), INTERVAL 2 HOUR) " +
 				"AND order_time_date <= DATE_ADD(DATE_ADD(NOW(), INTERVAL 2 HOUR), INTERVAL 5 MINUTE) " +
@@ -2195,6 +2245,7 @@ public class mysqlConnection {
 						String email = rs.getString("email");
 						String phone = rs.getString("phone");
 						int numberOfGuests = rs.getInt("number_of_guests");
+						boolean isSubscriber = rs.getBoolean("is_subscriber");
 						
 						String customerName = name != null ? name : (email != null ? email : phone);
 						String customerInfo = customerName + " (Confirmation: " + confirmationCode + ", Guests: " + numberOfGuests + ")";
@@ -2206,6 +2257,12 @@ public class mysqlConnection {
 						
 						if (email != null && !email.trim().isEmpty()) {
 							System.out.println("[Reminder Notification] Email sent to customer: " + customerInfo + 
+							                   " - Reminder: Your reservation is in 2 hours at " + orderTime);
+						}
+						
+						// Send QR CODE for subscribers
+						if (isSubscriber) {
+							System.out.println("[Reminder Notification] QR CODE sent to customer: " + customerInfo + 
 							                   " - Reminder: Your reservation is in 2 hours at " + orderTime);
 						}
 					}

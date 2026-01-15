@@ -28,15 +28,14 @@
     <TextField fx:id="emailTextField" promptText="Enter email" GridPane.columnIndex="1" GridPane.rowIndex="3" prefWidth="250.0" />
 
     <!-- Save Button -->
-    <Button fx:id="saveButton" onAction="#handleSave" text="Save" GridPane.columnIndex="1" GridPane.rowIndex="4" prefWidth="100.0" />
+    <Button fx:id="saveButton" onAction="#handleSave" text="Save" GridPane.columnIndex="1" GridPane.rowIndex="4" prefWidth="100.0" prefHeight="35.0" />
 
     <!-- Status Label -->
     <Label fx:id="statusLabel" text="" GridPane.columnSpan="2" GridPane.rowIndex="5" />
 
     <!-- Bottom Buttons -->
     <HBox alignment="CENTER" spacing="150" GridPane.columnSpan="2" GridPane.rowIndex="6">
-        <Button fx:id="btnBack" onAction="#Back" text="Back" />
-        <Button fx:id="btnExit" onAction="#getExitBtn" text="Exit" />
+        <Button fx:id="btnBack" onAction="#Back" text="Back" prefHeight="35.0" />
     </HBox>
     
     <columnConstraints>

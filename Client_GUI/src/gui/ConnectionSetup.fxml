@@ -10,7 +10,7 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
-<GridPane alignment="CENTER" hgap="16" prefHeight="520.0" prefWidth="650.0" vgap="18" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ConnectionSetupController">
+<GridPane alignment="CENTER" hgap="16" prefHeight="550.0" prefWidth="650.0" vgap="18" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ConnectionSetupController">
    <padding>
       <Insets bottom="30" left="30" right="30" top="30" />
    </padding>

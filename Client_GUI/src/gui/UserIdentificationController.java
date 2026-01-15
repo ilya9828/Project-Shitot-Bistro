@@ -14,7 +14,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.input.MouseEvent;
 import javafx.stage.Stage;
 
 /**
@@ -24,7 +26,13 @@ import javafx.stage.Stage;
 public class UserIdentificationController {
 
     @FXML
-    private TextField subidField;
+    private PasswordField passwordField;
+    
+    @FXML
+    private TextField textField;
+
+    @FXML
+    private Button showPasswordButton;
 
     @FXML
     private Button loginButton;
@@ -34,14 +42,69 @@ public class UserIdentificationController {
 
     @FXML
     private Label statusLabel;
-
+    
     /**
-     * Handles the "Login as Subscriber" button click.
-     * Validates the ID with the server and navigates to the appropriate menu (Subscriber, Staff, or Manager).
+     * Initialize the controller - set up show password button
      */
     @FXML
+    public void initialize() {
+        if (showPasswordButton != null) {
+            // Show password when mouse is pressed and held
+            showPasswordButton.setOnMousePressed(this::showPassword);
+            // Hide password when mouse is released
+            showPasswordButton.setOnMouseReleased(this::hidePassword);
+            // Hide password if mouse leaves button area (prevents password staying visible)
+            showPasswordButton.setOnMouseExited(this::hidePassword);
+        }
+    }
+    
+    /**
+     * Show password - switch from PasswordField to TextField (called on mouse press)
+     */
+    private void showPassword(MouseEvent event) {
+        String text = passwordField.getText();
+        textField.setText(text);
+        passwordField.setVisible(false);
+        passwordField.setManaged(false);
+        textField.setVisible(true);
+        textField.setManaged(true);
+        // Request focus on text field to maintain cursor position
+        Platform.runLater(() -> {
+            textField.requestFocus();
+            textField.positionCaret(text.length());
+        });
+    }
+    
+    /**
+     * Hide password - switch from TextField to PasswordField (called on mouse release)
+     */
+    private void hidePassword(MouseEvent event) {
+        // Only hide if textField is currently visible
+        if (textField.isVisible()) {
+            String text = textField.getText();
+            passwordField.setText(text);
+            textField.setVisible(false);
+            textField.setManaged(false);
+            passwordField.setVisible(true);
+            passwordField.setManaged(true);
+            // Request focus on password field to maintain cursor position
+            Platform.runLater(() -> {
+                passwordField.requestFocus();
+                passwordField.positionCaret(text.length());
+            });
+        }
+    }
+    
+    /**
+     * Get the text from the active field (always PasswordField for consistency)
+     */
+    private String getPasswordText() {
+        return passwordField.getText();
+    }
+    
+    @FXML
     private void handleLoginAsSubscriber() {
-        String userId = subidField.getText();
+        String userId = getPasswordText();
 
         // Validate that ID is not empty
         if (userId == null || userId.trim().isEmpty()) {

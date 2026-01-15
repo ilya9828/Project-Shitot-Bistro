@@ -36,8 +36,6 @@ public class DelayChartReportController {
     @FXML
     private Button backButton;
     @FXML
-    private Button exitButton;
-    @FXML
     private Label reportPeriodLabel;
     @FXML
     private Label summaryLabel;
@@ -422,17 +420,5 @@ public class DelayChartReportController {
         UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    /**
-     * This method is for the exit button sending a message to the server that now we are disconnecting,
-     * closing the GUI and the connection for the server.
-     */
-    @FXML
-    public void getExitBtn(ActionEvent event) throws Exception {
-        System.out.println("Disconnecting from the Server and ending the program.");
-        HashMap<String, String> EndingConnections = new HashMap<String, String>();
-        EndingConnections.put("Disconnect", "");
-        ClientUI.chat.accept(EndingConnections);
-        System.exit(0);
-    }
 }
 

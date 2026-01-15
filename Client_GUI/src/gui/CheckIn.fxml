@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.HBox?>
@@ -15,11 +16,17 @@
 
     <Label text="Check In" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;" />
 
+    <VBox spacing="10" alignment="CENTER">
+        <Label fx:id="selectCodeLabel" text="Select your confirmation code:" style="-fx-text-fill: white; -fx-font-size: 14px;" visible="false" managed="false" />
+        <ComboBox fx:id="confirmationCodeComboBox" prefWidth="300.0" promptText="Select confirmation code" visible="false" managed="false" />
+    </VBox>
+
     <TextField fx:id="confirmationCodeField" prefWidth="300.0" promptText="Enter confirmation code" />
 
     <HBox alignment="CENTER" spacing="15">
         <Button onAction="#handleCheckIn" text="Check In" style="-fx-font-size: 14px; -fx-padding: 10px 20px;" />
         <Button onAction="#handleLostCode" text="Lost Code" style="-fx-font-size: 14px; -fx-padding: 10px 20px;" />
+        <Button fx:id="qrCodeButton" onAction="#handleQRCode" text="QR-CODE" style="-fx-font-size: 14px; -fx-padding: 10px 20px; -fx-background-color: linear-gradient(to bottom, #3b82f6 0%, #2563eb 100%); -fx-text-fill: white;" />
     </HBox>
 
     <Label fx:id="statusLabel" style="-fx-text-fill: #ffd700; -fx-font-size: 13px;" />

@@ -28,7 +28,7 @@
     <Label text="Capacity (Chairs):" GridPane.columnIndex="0" GridPane.rowIndex="2" />
 
     <!-- Inputs - TextFields -->
-    <TextField fx:id="tableIdTextField" id="tableIdTextField" editable="false" promptText="Auto-generated" GridPane.columnIndex="1" GridPane.rowIndex="1" prefWidth="250.0" />
+    <TextField fx:id="tableIdTextField" id="tableIdTextField" editable="false" disable="true" promptText="Auto-generated" GridPane.columnIndex="1" GridPane.rowIndex="1" prefWidth="250.0" />
     <TextField fx:id="capacityTextField" promptText="Enter number of chairs" GridPane.columnIndex="1" GridPane.rowIndex="2" prefWidth="250.0" />
 
     <!-- Add Table Button -->
@@ -40,7 +40,6 @@
     <!-- Bottom Buttons -->
     <HBox alignment="CENTER" spacing="150" GridPane.columnSpan="2" GridPane.rowIndex="5">
         <Button fx:id="btnBack" onAction="#Back" text="Back" />
-        <Button fx:id="btnExit" onAction="#getExitBtn" text="Exit" />
     </HBox>
     
     <columnConstraints>

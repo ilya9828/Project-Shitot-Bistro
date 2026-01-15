@@ -48,6 +48,31 @@
     -fx-background-color: linear-gradient(to bottom, #ee5a6f 0%, #ff6b6b 100%);
 }
 
+/* QR Code Button */
+#qrCodeButton {
+    -fx-background-color: linear-gradient(to bottom, #3b82f6 0%, #2563eb 100%);
+    -fx-background-radius: 10px;
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-padding: 14px 28px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.3), 6, 0, 0, 3);
+    -fx-cursor: hand;
+}
+
+#qrCodeButton:hover {
+    -fx-background-color: linear-gradient(to bottom, #2563eb 0%, #1d4ed8 100%);
+    -fx-effect: dropshadow(three-pass-box, rgba(59,130,246,0.7), 10, 0, 0, 4);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
+}
+
+#qrCodeButton:pressed {
+    -fx-background-color: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%);
+    -fx-scale-x: 0.98;
+    -fx-scale-y: 0.98;
+}
+
 /* Labels */
 .label {
     -fx-text-fill: white;

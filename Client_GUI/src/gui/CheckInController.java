@@ -8,11 +8,15 @@ import common.UserSessionHelper;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
+import java.util.List;
 
 public class CheckInController {
 
@@ -24,6 +28,82 @@ public class CheckInController {
     
     @FXML
     private Button backButton;
+    
+    @FXML
+    private Button qrCodeButton;
+    
+    @FXML
+    private ComboBox<String> confirmationCodeComboBox;
+    
+    @FXML
+    private Label selectCodeLabel;
+
+    @FXML
+    public void initialize() {
+        // Check if user is a subscriber
+        if (UserSessionHelper.isSubscriber()) {
+            String subscriberID = UserSessionHelper.getSubscriberID();
+            if (subscriberID != null) {
+                // Show ComboBox and label
+                selectCodeLabel.setVisible(true);
+                selectCodeLabel.setManaged(true);
+                confirmationCodeComboBox.setVisible(true);
+                confirmationCodeComboBox.setManaged(true);
+                
+                // Load confirmation codes
+                loadSubscriberConfirmationCodes(subscriberID);
+                
+                // Set up listener to auto-fill text field when code is selected
+                confirmationCodeComboBox.setOnAction(e -> {
+                    String selectedCode = confirmationCodeComboBox.getValue();
+                    if (selectedCode != null && !selectedCode.isEmpty()) {
+                        confirmationCodeField.setText(selectedCode);
+                    }
+                });
+            }
+        }
+    }
+    
+    /**
+     * Load confirmation codes for subscriber's today reservations
+     */
+    private void loadSubscriberConfirmationCodes(String subscriberID) {
+        new Thread(() -> {
+            try {
+                ChatClient.subscriberConfirmationCodes.clear();
+                ChatClient.expectedListType = "subscriberConfirmationCodes";
+                
+                HashMap<String, String> request = new HashMap<>();
+                request.put("GetSubscriberTodayConfirmationCodes", subscriberID);
+                
+                ClientUI.chat.accept(request);
+                
+                // Wait for server response
+                Thread.sleep(500);
+                
+                Platform.runLater(() -> {
+                    List<String> codes = ChatClient.subscriberConfirmationCodes;
+                    if (codes != null && !codes.isEmpty()) {
+                        ObservableList<String> codeList = FXCollections.observableArrayList(codes);
+                        confirmationCodeComboBox.setItems(codeList);
+                    } else {
+                        // No codes found, but keep ComboBox visible with empty list
+                        ObservableList<String> emptyList = FXCollections.observableArrayList();
+                        confirmationCodeComboBox.setItems(emptyList);
+                        confirmationCodeComboBox.setPromptText("No reservations for today");
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                Platform.runLater(() -> {
+                    // Keep ComboBox visible even on error, just show empty list
+                    ObservableList<String> emptyList = FXCollections.observableArrayList();
+                    confirmationCodeComboBox.setItems(emptyList);
+                    confirmationCodeComboBox.setPromptText("Error loading codes");
+                });
+            }
+        }).start();
+    }
 
     // FIX: Check-In operation with proper async handling
     @FXML
@@ -190,6 +270,15 @@ public class CheckInController {
         alert.setTitle("Error");
         alert.setHeaderText(null);
         alert.setContentText(msg);
+        alert.showAndWait();
+    }
+    
+    @FXML
+    private void handleQRCode() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("QR Code");
+        alert.setHeaderText("Scan Your QR Code");
+        
         alert.showAndWait();
     }
 }

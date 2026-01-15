@@ -17,37 +17,29 @@
         <Insets bottom="20" left="20" right="20" top="20" />
     </padding>
 
-    <!-- Title -->
-    <Label text="Edit Table" GridPane.columnSpan="2" GridPane.rowIndex="0">
-        <font>
-            <Font name="System Bold" size="16.0" />
-        </font>
-    </Label>
-
     <!-- Table Selection -->
-    <Label text="Select Table ID:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
-    <ComboBox fx:id="tableIdComboBox" promptText="Select table" GridPane.columnIndex="1" GridPane.rowIndex="1" prefWidth="250.0" />
+    <Label text="Select Table ID:" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+    <ComboBox fx:id="tableIdComboBox" promptText="Select table" GridPane.columnIndex="1" GridPane.rowIndex="0" prefWidth="250.0" />
 
-    <!-- Action Buttons -->
-    <HBox spacing="20" GridPane.columnIndex="0" GridPane.rowIndex="2" GridPane.columnSpan="2">
+    <!-- Action Buttons - Aligned with ComboBox -->
+    <HBox spacing="20" GridPane.columnIndex="1" GridPane.rowIndex="1">
         <Button fx:id="loadButton" onAction="#handleLoad" text="Load" prefWidth="100.0" />
-        <Button fx:id="deleteButton" onAction="#handleDelete" text="Delete" prefWidth="100.0" />
+        <Button fx:id="deleteButton" onAction="#handleDelete" text="Delete" prefWidth="150.0" />
     </HBox>
 
     <!-- Capacity Section (shown after Load) -->
-    <Label text="Capacity (Chairs):" GridPane.columnIndex="0" GridPane.rowIndex="3" />
-    <TextField fx:id="capacityTextField" promptText="Enter number of chairs" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="3" prefWidth="250.0" />
+    <Label text="Capacity (Chairs):" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+    <TextField fx:id="capacityTextField" promptText="Enter number of chairs" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="2" prefWidth="250.0" />
 
     <!-- Save Button (shown after Load) -->
-    <Button fx:id="saveButton" onAction="#handleSave" text="Save Changes" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="4" prefWidth="120.0" />
+    <Button fx:id="saveButton" onAction="#handleSave" text="Save" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="3" prefWidth="120.0" />
 
     <!-- Status Label -->
-    <Label fx:id="statusLabel" text="" GridPane.columnSpan="2" GridPane.rowIndex="5" />
+    <Label fx:id="statusLabel" text="" GridPane.columnSpan="2" GridPane.rowIndex="4" />
 
     <!-- Bottom Buttons -->
-    <HBox alignment="CENTER" spacing="150" GridPane.columnSpan="2" GridPane.rowIndex="6">
+    <HBox alignment="CENTER" spacing="150" GridPane.columnSpan="2" GridPane.rowIndex="5">
         <Button fx:id="btnBack" onAction="#Back" text="Back" />
-        <Button fx:id="btnExit" onAction="#getExitBtn" text="Exit" />
     </HBox>
     
     <columnConstraints>
@@ -55,7 +47,6 @@
         <ColumnConstraints />
     </columnConstraints>
     <rowConstraints>
-        <RowConstraints />
         <RowConstraints />
         <RowConstraints />
         <RowConstraints />

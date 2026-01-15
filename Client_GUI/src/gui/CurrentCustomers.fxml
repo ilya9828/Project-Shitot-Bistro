@@ -5,17 +5,16 @@
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.layout.AnchorPane?>
 
-<AnchorPane prefHeight="369.0" prefWidth="834.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.CurrentCustomersController">
+<AnchorPane prefHeight="320.0" prefWidth="700.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.CurrentCustomersController">
    <children>
-      <Button id="btnExit" fx:id="btnExit" layoutX="647.0" layoutY="302.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
-      <Button id="btnBack" fx:id="btnBack" layoutX="148.0" layoutY="302.0" mnemonicParsing="false" onAction="#Back" text="Back" />
-      <TableView id="occupiedTablesTable" fx:id="occupiedTablesTable" layoutX="21.0" layoutY="45.0" prefHeight="211.0" prefWidth="800.0">
+      <Button id="btnBack" fx:id="btnBack" layoutX="325.0" layoutY="270.0" mnemonicParsing="false" onAction="#Back" text="Back" />
+      <TableView id="occupiedTablesTable" fx:id="occupiedTablesTable" layoutX="21.0" layoutY="20.0" prefHeight="200.0" prefWidth="658.0">
         <columns>
-          <TableColumn fx:id="tableID" prefWidth="160.0" text="Table ID" />
-          <TableColumn fx:id="capacity" prefWidth="160.0" text="Capacity" />
-          <TableColumn fx:id="customerName" prefWidth="160.0" text="Customer Name" />
-          <TableColumn fx:id="checkInTime" prefWidth="160.0" text="Check In Time" />
-          <TableColumn fx:id="confirmationCode" prefWidth="160.0" text="Confirmation Code" />
+          <TableColumn fx:id="tableID" prefWidth="131.0" text="Table ID" />
+          <TableColumn fx:id="capacity" prefWidth="131.0" text="Capacity" />
+          <TableColumn fx:id="customerName" prefWidth="131.0" text="Customer Name" />
+          <TableColumn fx:id="checkInTime" prefWidth="131.0" text="Check In Time" />
+          <TableColumn fx:id="confirmationCode" prefWidth="134.0" text="Confirmation Code" />
         </columns>
       </TableView>
    </children>

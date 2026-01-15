@@ -11,7 +11,7 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
 
-<GridPane alignment="CENTER" hgap="10" prefHeight="520.0" prefWidth="600.0" vgap="15" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ReserveTableController">
+<GridPane alignment="CENTER" hgap="10" prefHeight="550.0" prefWidth="600.0" vgap="15" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.ReserveTableController">
 
     <padding>
         <Insets bottom="20" left="20" right="20" top="20" />

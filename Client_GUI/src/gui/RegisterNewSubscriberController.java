@@ -41,9 +41,6 @@ public class RegisterNewSubscriberController {
     @FXML
     private Button btnBack;
 
-    @FXML
-    private Button btnExit;
-
     /**
      * Initialize the controller - set up listeners and disable subscriber ID field
      */
@@ -153,17 +150,6 @@ public class RegisterNewSubscriberController {
         UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    /**
-     * This method is for the exit button sending a message to the server that now we are disconnecting,
-     * closing the GUI and the connection for the server.
-     */
-    public void getExitBtn(ActionEvent event) throws Exception {
-        System.out.println("Disconnecting from the Server and ending the program.");
-        HashMap<String, String> EndingConnections = new HashMap<String, String>();
-        EndingConnections.put("Disconnect", "");
-        ClientUI.chat.accept(EndingConnections);
-        System.exit(0);
-    }
 
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

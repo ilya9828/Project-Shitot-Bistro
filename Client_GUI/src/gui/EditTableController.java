@@ -43,9 +43,6 @@ public class EditTableController {
     @FXML
     private Button btnBack;
 
-    @FXML
-    private Button btnExit;
-
     private int currentCapacity = -1; // Store current capacity to compare with new value
     private String selectedTableId = null;
 
@@ -278,17 +275,6 @@ public class EditTableController {
         UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    /**
-     * This method is for the exit button sending a message to the server that now we are disconnecting,
-     * closing the GUI and the connection for the server.
-     */
-    public void getExitBtn(ActionEvent event) throws Exception {
-        System.out.println("Disconnecting from the Server and ending the program.");
-        HashMap<String, String> EndingConnections = new HashMap<String, String>();
-        EndingConnections.put("Disconnect", "");
-        ClientUI.chat.accept(EndingConnections);
-        System.exit(0);
-    }
 
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

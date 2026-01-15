@@ -5,18 +5,17 @@
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.layout.AnchorPane?>
 
-<AnchorPane prefHeight="369.0" prefWidth="834.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.CurrentReservationsController">
+<AnchorPane prefHeight="320.0" prefWidth="700.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="gui.CurrentReservationsController">
    <children>
-      <Button id="btnExit" fx:id="btnExit" layoutX="647.0" layoutY="302.0" mnemonicParsing="false" onAction="#getExitBtn" text="Exit" />
-      <Button id="btnBack" fx:id="btnBack" layoutX="148.0" layoutY="302.0" mnemonicParsing="false" onAction="#Back" text="Back" />
-      <TableView id="currentReservationsTable" fx:id="currentReservationsTable" layoutX="21.0" layoutY="45.0" prefHeight="211.0" prefWidth="800.0">
+      <Button id="btnBack" fx:id="btnBack" layoutX="325.0" layoutY="270.0" mnemonicParsing="false" onAction="#Back" text="Back" />
+      <TableView id="currentReservationsTable" fx:id="currentReservationsTable" layoutX="21.0" layoutY="20.0" prefHeight="200.0" prefWidth="658.0">
         <columns>
-          <TableColumn fx:id="orderNumber" prefWidth="133.0" text="Order Number" />
-          <TableColumn fx:id="confirmationCode" prefWidth="133.0" text="Confirmation Code" />
-          <TableColumn fx:id="name" prefWidth="133.0" text="Name" />
-          <TableColumn fx:id="phone" prefWidth="133.0" text="Phone" />
-          <TableColumn fx:id="status" prefWidth="133.0" text="Status" />
-          <TableColumn fx:id="orderTimeDate" prefWidth="135.0" text="Order Time Date" />
+          <TableColumn fx:id="orderNumber" prefWidth="109.0" text="Order Number" />
+          <TableColumn fx:id="confirmationCode" prefWidth="109.0" text="Confirmation Code" />
+          <TableColumn fx:id="name" prefWidth="109.0" text="Name" />
+          <TableColumn fx:id="phone" prefWidth="109.0" text="Phone" />
+          <TableColumn fx:id="status" prefWidth="109.0" text="Status" />
+          <TableColumn fx:id="orderTimeDate" prefWidth="113.0" text="Order Time Date" />
         </columns>
       </TableView>
    </children>

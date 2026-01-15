@@ -46,22 +46,20 @@ public class SubMenuController extends BaseMenuController {
 
     /**
      * Handles the "Edit Personal Info" button click.
-     * TODO: Implement EditPersonalInfo functionality.
+     * Navigates to the EditPersonalInfo screen.
      */
     @FXML
     private void handleEditPersonalInfo() {
-        showInfo("Edit Personal Info - Feature coming soon!\nSubscriber ID: " + subscriberID);
-        // TODO: Navigate to EditPersonalInfo screen
+        navigateToScreen("EditPersonalInfo", "Edit Personal Information");
     }
 
     /**
      * Handles the "Show History" button click.
-     * TODO: Implement ShowHistory functionality.
+     * Navigates to the ShowHistory screen.
      */
     @FXML
     private void handleShowHistory() {
-        showInfo("Show History - Feature coming soon!\nSubscriber ID: " + subscriberID);
-        // TODO: Navigate to ShowHistory screen and fetch history from server
+        navigateToScreen("ShowHistory", "Visit History");
     }
 
     /**

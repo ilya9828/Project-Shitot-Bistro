@@ -35,9 +35,6 @@ public class AddTableController {
     @FXML
     private Button btnBack;
 
-    @FXML
-    private Button btnExit;
-
     /**
      * Initialize the controller - disable table ID field and load next available ID
      */
@@ -45,6 +42,7 @@ public class AddTableController {
     public void initialize() {
         // Disable and grey out the table ID text field
         tableIdTextField.setEditable(false);
+        tableIdTextField.setDisable(true);
         
         // Load the next available table ID from the server
         loadNextTableId();
@@ -147,17 +145,6 @@ public class AddTableController {
         UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    /**
-     * This method is for the exit button sending a message to the server that now we are disconnecting,
-     * closing the GUI and the connection for the server.
-     */
-    public void getExitBtn(ActionEvent event) throws Exception {
-        System.out.println("Disconnecting from the Server and ending the program.");
-        HashMap<String, String> EndingConnections = new HashMap<String, String>();
-        EndingConnections.put("Disconnect", "");
-        ClientUI.chat.accept(EndingConnections);
-        System.exit(0);
-    }
 
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

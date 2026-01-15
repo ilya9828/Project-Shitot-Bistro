@@ -19,6 +19,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DateCell;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -85,6 +86,9 @@ public class EditOpeningHoursController {
         // Initialize day of week combo box (Sunday first)
         initDayOfWeekComboBox();
         
+        // Set up DatePicker to restrict dates based on selected day of week
+        setupDatePickerFilter();
+        
         // Initially disable the input fields
         dayOfWeekComboBox.setDisable(true);
         specificDatePicker.setDisable(true);
@@ -99,6 +103,20 @@ public class EditOpeningHoursController {
                 numberOfDaysCheckBox.setSelected(false);
                 numberOfDaysTextField.setDisable(true);
                 permanentCheckBox.setSelected(false);
+                // Update DatePicker filter when enabling
+                setupDatePickerFilter();
+            } else {
+                // Clear DatePicker filter when disabling
+                specificDatePicker.setDayCellFactory(null);
+                specificDatePicker.setValue(null);
+            }
+        });
+        
+        // Update DatePicker filter when day of week changes
+        dayOfWeekComboBox.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null && specificDayCheckBox.isSelected()) {
+                setupDatePickerFilter();
+                specificDatePicker.setValue(null); // Clear previous selection
             }
         });
         
@@ -190,6 +208,41 @@ public class EditOpeningHoursController {
             "Sunday", "Monday", "Tuesday", "Wednesday", 
             "Thursday", "Friday", "Saturday"
         );
+    }
+    
+    /**
+     * Set up DatePicker to only allow dates matching the selected day of week
+     */
+    private void setupDatePickerFilter() {
+        String selectedDay = dayOfWeekComboBox.getValue();
+        if (selectedDay == null || !specificDayCheckBox.isSelected()) {
+            specificDatePicker.setDayCellFactory(null);
+            return;
+        }
+        
+        // Convert day name to DayOfWeek enum
+        java.time.DayOfWeek targetDayOfWeek;
+        try {
+            targetDayOfWeek = java.time.DayOfWeek.valueOf(selectedDay.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            specificDatePicker.setDayCellFactory(null);
+            return;
+        }
+        
+        // Set day cell factory to disable dates that don't match the selected day
+        specificDatePicker.setDayCellFactory(picker -> new DateCell() {
+            @Override
+            public void updateItem(LocalDate date, boolean empty) {
+                super.updateItem(date, empty);
+                if (date != null && !empty) {
+                    // Disable dates that don't match the selected day of week
+                    if (date.getDayOfWeek() != targetDayOfWeek) {
+                        setDisable(true);
+                        setStyle("-fx-background-color: #ffcccc;"); // Light red for disabled dates
+                    }
+                }
+            }
+        });
     }
 
     /**
