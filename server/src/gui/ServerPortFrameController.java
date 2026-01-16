@@ -2,7 +2,6 @@ package gui;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
-import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -42,7 +41,6 @@ public class ServerPortFrameController  {
 	@FXML
 	private TextField localiptxt;
 	
-	ObservableList<String> list;
 	
 	/*
 	 * this method is getting the port from the user

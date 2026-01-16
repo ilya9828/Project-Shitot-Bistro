@@ -81,9 +81,11 @@ public class CurrentReservationsController {
     }
 
     /**
-     * This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     @FXML
     public void Back(ActionEvent event) throws IOException {
@@ -91,8 +93,9 @@ public class CurrentReservationsController {
     }
 
     /**
-     * This method is getting list of current reservations and uploading it to the table view
-     * @param reservations - list of reservations as strings (format: "order_number, confirmation_code, name, phone, status, order_time_date")
+     * Loads a list of current reservations and displays them in the table view.
+     * 
+     * @param reservations List of reservations as strings (format: "order_number, confirmation_code, name, phone, status, order_time_date")
      */
     public void loadCurrentReservations(List<String> reservations) {
         // Convert the list to an observable list and set it to the table

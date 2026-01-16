@@ -8,6 +8,7 @@ import java.util.concurrent.FutureTask;
 import client.ChatClient;
 import client.ClientUI;
 import common.UserSelect;
+import common.UserSessionHelper;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -46,7 +47,7 @@ public class StaffMenuController extends BaseMenuController {
 	@FXML
 	private Button guestOptionsButton;
 	@FXML
-	private Button subscriberOptionsButton;
+	private Button subscriberActionsButton;
 
 	/**
 	 * Handles Sub Info button click.
@@ -122,49 +123,16 @@ public class StaffMenuController extends BaseMenuController {
 	}
 
 	/**
-	 * Handles Subscriber Options button click.
-	 * Navigates to Subscriber Options screen.
+	 * Handles Subscriber Actions button click.
+	 * Prompts for subscriber ID, validates it, and opens Subscriber Menu.
 	 */
 	@FXML
-	private void handleSubscriberOptions() {
-		navigateToSubscriberOptions();
-	}
-
-	/**
-	 * Navigates to Guest Options screen.
-	 * Positions it to perfectly overlap the current Manager/Staff window.
-	 */
-	private void navigateToGuestOptions() {
-		try {
-			// Get current window
-			Stage currentStage = (Stage) guestOptionsButton.getScene().getWindow();
-			double currentWidth = currentStage.getWidth();
-			double currentHeight = currentStage.getHeight();
-			
-			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/GuestOptions.fxml"));
-			Parent root = loader.load();
-
-			Scene scene = new Scene(root, currentWidth, currentHeight);
-			scene.getStylesheets().add(getClass().getResource("/gui/GuestOptions.css").toExternalForm());
-			currentStage.setTitle("Guest Options");
-			currentStage.setScene(scene);
-		} catch (IOException e) {
-			System.err.println("Failed to load Guest Options screen: " + e.getMessage());
-			e.printStackTrace();
-		}
-	}
-
-	/**
-	 * Navigates to Subscriber Options screen.
-	 * First prompts for subscriber ID, then opens the screen with that ID.
-	 */
-	private void navigateToSubscriberOptions() {
-		// Show dialog to get subscriber ID
+	private void handleSubscriberActions() {
 		showSubscriberIDDialog();
 	}
-	
+
 	/**
-	 * Shows a dialog to input subscriber ID and validates it before opening Subscriber Options.
+	 * Shows a dialog to input subscriber ID and validates it before opening Subscriber Menu.
 	 */
 	private void showSubscriberIDDialog() {
 		TextInputDialog dialog = new TextInputDialog();
@@ -180,16 +148,16 @@ public class StaffMenuController extends BaseMenuController {
 		
 		if (result.isPresent() && !result.get().trim().isEmpty()) {
 			String subscriberId = result.get().trim();
-			validateAndOpenSubscriberOptions(subscriberId);
+			validateAndOpenSubscriberMenu(subscriberId);
 		}
 	}
 	
 	/**
-	 * Validates the subscriber ID with the server and opens Subscriber Options if valid.
+	 * Validates the subscriber ID with the server and opens Subscriber Menu if valid.
 	 */
-	private void validateAndOpenSubscriberOptions(String subscriberId) {
-		// Disable buttons during validation
-		subscriberOptionsButton.setDisable(true);
+	private void validateAndOpenSubscriberMenu(String subscriberId) {
+		// Disable button during validation
+		subscriberActionsButton.setDisable(true);
 		
 		// Send user ID to server for validation
 		new Thread(() -> {
@@ -206,11 +174,14 @@ public class StaffMenuController extends BaseMenuController {
 					String response = ChatClient.fromserverString;
 					ChatClient.ResetServerString();
 
-					subscriberOptionsButton.setDisable(false);
+					subscriberActionsButton.setDisable(false);
 					
 					if ("Subscriber".equals(response)) {
-						// Valid subscriber - open Subscriber Options screen
-						openSubscriberOptionsScreen(subscriberId);
+						// Valid subscriber - set subscriber context (stores original staff/manager context)
+						UserSessionHelper.setSubscriber(subscriberId);
+						
+						// Open Subscriber Menu
+						openSubscriberMenu(subscriberId);
 					} else {
 						// Invalid ID or error
 						showError("Invalid Subscriber ID. Please check the ID and try again.");
@@ -218,7 +189,7 @@ public class StaffMenuController extends BaseMenuController {
 				});
 			} catch (Exception e) {
 				Platform.runLater(() -> {
-					subscriberOptionsButton.setDisable(false);
+					subscriberActionsButton.setDisable(false);
 					showError("Error connecting to server. Please try again.");
 					e.printStackTrace();
 				});
@@ -227,27 +198,56 @@ public class StaffMenuController extends BaseMenuController {
 	}
 	
 	/**
-	 * Opens the Subscriber Options screen with the validated subscriber ID.
+	 * Opens the Subscriber Menu screen with the validated subscriber ID.
 	 */
-	private void openSubscriberOptionsScreen(String subscriberId) {
+	private void openSubscriberMenu(String subscriberId) {
 		try {
 			// Get current window
-			Stage currentStage = (Stage) subscriberOptionsButton.getScene().getWindow();
+			Stage currentStage = (Stage) subscriberActionsButton.getScene().getWindow();
 			
-			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/SubscriberOptions.fxml"));
+			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/SubMenu.fxml"));
 			Parent root = loader.load();
 			
-			SubscriberOptionsController controller = loader.getController();
+			// Set the subscriber ID in the controller
+			SubMenuController controller = loader.getController();
 			controller.setSubscriberID(subscriberId);
 
 			Scene scene = new Scene(root);
-			scene.getStylesheets().add(getClass().getResource("/gui/SubscriberOptions.css").toExternalForm());
-			currentStage.setTitle("Subscriber Options");
+			scene.getStylesheets().add(getClass().getResource("/gui/SubMenu.css").toExternalForm());
+			currentStage.setTitle("Subscriber Menu");
 			currentStage.setScene(scene);
 		} catch (IOException e) {
-			System.err.println("Failed to load Subscriber Options screen: " + e.getMessage());
+			System.err.println("Failed to load Subscriber Menu screen: " + e.getMessage());
 			e.printStackTrace();
-			showError("Failed to load Subscriber Options screen.");
+			showError("Failed to load Subscriber Menu screen.");
+		}
+	}
+
+	/**
+	 * Navigates to Guest Options screen.
+	 * Positions it to perfectly overlap the current Manager/Staff window.
+	 */
+	private void navigateToGuestOptions() {
+		try {
+			// Set guest context so screens accessed from GuestOptions work correctly
+			// The original context (STAFF/MANAGER) is automatically stored by UserSessionHelper
+			UserSessionHelper.setGuest();
+			
+			// Get current window
+			Stage currentStage = (Stage) guestOptionsButton.getScene().getWindow();
+			double currentWidth = currentStage.getWidth();
+			double currentHeight = currentStage.getHeight();
+			
+			FXMLLoader loader = new FXMLLoader(getClass().getResource("/gui/GuestOptions.fxml"));
+			Parent root = loader.load();
+
+			Scene scene = new Scene(root, currentWidth, currentHeight);
+			scene.getStylesheets().add(getClass().getResource("/gui/GuestOptions.css").toExternalForm());
+			currentStage.setTitle("Guest Options");
+			currentStage.setScene(scene);
+		} catch (IOException e) {
+			System.err.println("Failed to load Guest Options screen: " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
@@ -375,6 +375,28 @@ public class StaffMenuController extends BaseMenuController {
 				HashMap<String, String> ShowWaitingList = new HashMap<String, String>();
 				ShowWaitingList.put("GetWaitingList", "");
 				ClientUI.chat.accept(ShowWaitingList);
+			});
+			
+			// Wait for server response - poll until response arrives or timeout (5 seconds)
+			int waitCount = 0;
+			int maxWait = 50; // 50 * 100ms = 5 seconds
+			while (waitCount < maxWait) {
+				try {
+					Thread.sleep(100);
+					// Check if expectedListType was reset, which happens when data is received
+					// (even if the list is empty, expectedListType will be reset)
+					if (ChatClient.expectedListType.isEmpty()) {
+						break;
+					}
+					waitCount++;
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+					break;
+				}
+			}
+			
+			// Load the data into the controller after receiving response
+			Platform.runLater(() -> {
 				GetWaitingListController controller = loader.getController();
 				if (ChatClient.waitingListTable != null) {
 					controller.loadWaitingList(ChatClient.waitingListTable);

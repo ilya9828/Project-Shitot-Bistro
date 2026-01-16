@@ -10,7 +10,6 @@ import common.ChatIF;
  * and getting the information that we wants to send to the server.
  */
 public class ClientController implements ChatIF {
-	public static int DEFAULT_PORT;
 	ChatClient client;
 
 	// Constructors ****************************************************

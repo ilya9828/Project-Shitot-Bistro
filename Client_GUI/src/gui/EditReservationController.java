@@ -15,17 +15,13 @@ import common.UserSessionHelper;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.stage.Stage;
 
 /**
  * Controller for editing reservations.
@@ -73,63 +69,22 @@ public class EditReservationController {
 	}
 
 	/**
-	 * This method is for the back button closing the current GUI and uploading the
-	 * menu GUI.
+	 * Handles the Back button click.
+	 * Closes the current screen and navigates back to the appropriate menu.
 	 * 
-	 * @param event - click on the back button.
-	 * @throws IOException
+	 * @param event The click event on the back button
+	 * @throws IOException If navigation fails
 	 */
-	
 	public void Back(ActionEvent event) throws IOException {
-        // Navigate back to appropriate menu based on user type
-        boolean isGuest = UserSessionHelper.isGuest();
-        String menuFile = isGuest ? "/gui/GuestMenu.fxml" : "/gui/SubMenu.fxml";
-        String cssFile = isGuest ? "/gui/GuestMenu.css" : "/gui/SubMenu.css";
-        String title = isGuest ? "Guest Menu" : "Subscriber Menu";
-        
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(menuFile));
-        Parent root = loader.load();
-        
-        // If subscriber, set the subscriber ID
-        if (!isGuest) {
-            try {
-                Object controller = loader.getController();
-                if (controller instanceof SubMenuController) {
-                    ((SubMenuController) controller).setSubscriberID(UserSessionHelper.getSubscriberID());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        scene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-        stage.setScene(scene);
-        stage.setTitle(title);
-        
-        stage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        stage.show();
-        ((Node) event.getSource()).getScene().getWindow().hide();
+        // Use centralized navigation that handles context restoration
+        UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
 	/**
-	 * This method is for the update button is sending the information to the server
-	 * which subscriber to update and what to change.
+	 * Handles the Update button click.
+	 * Sends the updated reservation information to the server.
 	 * 
-	 * @param event - the click on the update button.
+	 * @param event The click event on the update button
 	 */
 	public void UpdateBtn(ActionEvent event) {
 
@@ -305,7 +260,7 @@ public class EditReservationController {
 	 * Handles the Cancel Reservation button click.
 	 * Cancels the reservation by updating its status to "cancelled" in the database.
 	 * 
-	 * @param event - the click on the cancel button.
+	 * @param event The click event on the cancel button
 	 */
 	public void CancelBtn(ActionEvent event) {
 		String confirmationCode = txtConfirm.getText().trim();
@@ -371,11 +326,10 @@ public class EditReservationController {
 	}
 	
 	/**
-	 * This method is for the load button. getting the string from the
-	 * server and calling other method "LoadDetails()" to handle it and load into the GUI
-	 * FIX: Changed to use confirmation_code instead of order_number
+	 * Handles the Load button click.
+	 * Sends the confirmation code to the server and loads the reservation details into the GUI.
 	 * 
-	 * @param event - the click on the load button.
+	 * @param event The click event on the load button
 	 */
 	public void Loadbtn(ActionEvent event) {
 		String confirmationCode = txtConfirm.getText().trim();

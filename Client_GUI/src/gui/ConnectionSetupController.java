@@ -51,19 +51,29 @@ public class ConnectionSetupController {
 
 	private static String localIp;
 	
-	//This method is getting the ip that the user wrote in the textfield.
+	/**
+	 * Retrieves the IP address entered by the user in the text field.
+	 * 
+	 * @return The IP address string from the server IP text field
+	 */
 	private String getIP() {
 		return serveriptxt.getText();
 		
 	}
 	
-	//This method is getting the port that the user wrote in the textfield.
+	/**
+	 * Retrieves the port number entered by the user in the text field.
+	 * 
+	 * @return The port number string from the port text field
+	 */
 	private String getPort() {
 		return porttxt.getText();
 	}
 
-	/** This method is changing the message on the String to 10 seconds
-	 * @param s - the message we want to see on the GUI
+	/**
+	 * Displays a message on the GUI for 10 seconds, then automatically clears it.
+	 * 
+	 * @param s The message to display on the GUI
 	 */
 	private void changeString(String s) {
 		Platform.runLater(() -> {
@@ -77,9 +87,11 @@ public class ConnectionSetupController {
 	}
 
 	
-	/** This method is for the connect button, it starting the connection to the server 
-	 * and upload the next (menu) GUI
-	 * @param event			- the button action
+	/**
+	 * Handles the Connect button click.
+	 * Establishes connection to the server and loads the next (menu) GUI.
+	 * 
+	 * @param event The button action event
 	 */
 	public void Connect(ActionEvent event){
 		String ip, port;
@@ -95,7 +107,7 @@ public class ConnectionSetupController {
 			} else {
 				changeString("Please wait while trying connect to the server...");
 				lblwaitmsg.setVisible(true);
-				// first the GUI will show the message then we will connect to the server.
+				// First the GUI will show the message, then we will connect to the server
 				Callable<Void> task = () -> {
 					boolean connected = ClientUI.StartConnectionWithServer(ip, port);
 					Platform.runLater(() -> {
@@ -151,7 +163,7 @@ public class ConnectionSetupController {
 					});
 					return null;
 				};
-				//After we saw the GUI message we are starting to connect to the server.
+				// After we display the GUI message, we start connecting to the server
 				FutureTask<Void> futureTask = new FutureTask<>(task);
 				new Thread(futureTask).start();
 				try {
@@ -183,9 +195,12 @@ public class ConnectionSetupController {
 	}
 	
 	
-	/**This constructor close this system.
-	 * @param event - the click on the Exit btn.
-	 * @throws Exception
+	/**
+	 * Handles the Exit button click.
+	 * Disconnects from the server and closes the application.
+	 * 
+	 * @param event The click event on the Exit button
+	 * @throws Exception If an error occurs during disconnection
 	 */
 	public void getExitBtn(ActionEvent event) throws Exception {
 	    handleExit();
@@ -196,9 +211,9 @@ public class ConnectionSetupController {
 
 
 	
-	/** init starting automaticly when the GUI is up.
-	 * showing the local ip in the GUI.
-	 * 
+	/**
+	 * Initializes the controller when the GUI is loaded.
+	 * Automatically displays the local IP address in the GUI and pre-fills it in the server IP field.
 	 */
 	public void initialize() {
 		try {

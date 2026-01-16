@@ -73,9 +73,11 @@ public class CurrentCustomersController {
     }
 
     /**
-     * This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     @FXML
     public void Back(ActionEvent event) throws IOException {
@@ -83,8 +85,9 @@ public class CurrentCustomersController {
     }
 
     /**
-     * This method is getting list of occupied tables and uploading it to the table view
-     * @param tables - list of occupied tables as strings (format: "tableID, capacity, customerName, checkInTime, confirmationCode")
+     * Loads a list of occupied tables and displays them in the table view.
+     * 
+     * @param tables List of occupied tables as strings (format: "tableID, capacity, customerName, checkInTime, confirmationCode")
      */
     public void loadOccupiedTables(List<String> tables) {
         // Convert the list to an observable list and set it to the table

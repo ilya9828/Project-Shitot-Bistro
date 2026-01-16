@@ -41,9 +41,11 @@ public class ShowAllOrdersController {
     private TableColumn<String, String> subscriber_id;
     @FXML
     private TableColumn<String, String> date_of_placing_order;
-    /*
-	 * initialize the GUI with the data to the table view.
-	 */
+    
+    /**
+     * Initializes the controller.
+     * Sets up the table columns to display order data.
+     */
     public void initialize() {
         // Split each row of data (string) and display it in separate columns
     	order_number.setCellValueFactory(cellData -> {
@@ -73,9 +75,12 @@ public class ShowAllOrdersController {
     }
 
     
-    /** This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+    /**
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     public void Back(ActionEvent event) throws IOException {
         FXMLLoader ordersLoader = new FXMLLoader(getClass().getResource("/gui/Menu.fxml"));
@@ -91,17 +96,22 @@ public class ShowAllOrdersController {
 
     
     
-    /**This method is getting list of the orders and uploading it to the table view
-     * @param orders - list of the orders.
+    /**
+     * Loads a list of orders and displays them in the table view.
+     * 
+     * @param orders List of orders as strings (format: "order_number, order_date, number_of_guests, confirmation_code, subscriber_id, date_of_placing_order")
      */
     public void loadOrders(List<String> orders) {
         // Convert the list to an observable list and set it to the table
         ordersTable.setItems(FXCollections.observableArrayList(orders));
     }
     
-	/*
-	 * This method is for the exit button sending a message to the server that now we are disconnecting,
-	 * closing the GUI and the connection for the server.
+	/**
+	 * Handles the Exit button click.
+	 * Sends a disconnect message to the server, closes the GUI, and terminates the connection.
+	 * 
+	 * @param event The click event on the exit button
+	 * @throws Exception If an error occurs during disconnection
 	 */
 	public void getExitBtn(ActionEvent event) throws Exception {
 		System.out.println("Disconnecting from the Server and ending the program.");

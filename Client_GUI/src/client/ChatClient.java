@@ -9,9 +9,6 @@ import java.util.List;
 /**
  * This class is handling the messages from the client to the server and the other way.
  */
-/**
- * 
- */
 public class ChatClient extends AbstractClient {
 
 	ChatIF clientUI;
@@ -40,6 +37,7 @@ public class ChatClient extends AbstractClient {
 	 * 2- if we asked to load one subscriber, or waiting for feedback from the server(we would expect String from the server)
 	 * @param msg - the message from the server
 	 */
+	@SuppressWarnings("unchecked")
 	public void handleMessageFromServer(Object msg) {
 		//extracting the msg from the server upon the class.
 		if (msg instanceof List) {

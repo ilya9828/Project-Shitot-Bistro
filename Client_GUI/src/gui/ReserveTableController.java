@@ -15,18 +15,19 @@ import entities.Reservations;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.TextField;
-import javafx.stage.Stage;
 
+/**
+ * Controller for the Reserve Table screen.
+ * Allows users (guests and subscribers) to make table reservations.
+ * For subscribers, automatically uses their stored information (name, phone, email).
+ */
 public class ReserveTableController {
 
     @FXML
@@ -88,6 +89,12 @@ public class ReserveTableController {
         }
     }
 
+    /**
+     * Initializes the time ComboBox with time slots in 30-minute intervals.
+     * 
+     * @param startTime The start time for the time slots (defaults to 12:00 if null)
+     * @param endTime The end time for the time slots (defaults to 22:00 if null)
+     */
     private void initTimeComboBox(LocalTime startTime, LocalTime endTime) {
         timeComboBox.getItems().clear();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -107,6 +114,12 @@ public class ReserveTableController {
         }
     }
     
+    /**
+     * Updates the time ComboBox based on the selected date.
+     * Fetches opening hours from the server for the selected date and populates available time slots.
+     * 
+     * @param date The selected date for which to fetch opening hours
+     */
     private void updateTimeComboBoxForDate(LocalDate date) {
         // Format date as yyyy-MM-dd
         String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
@@ -159,61 +172,24 @@ public class ReserveTableController {
         }).start();
     }
     
-    /*
-	 * This method is for the exit button sending a message to the server that now we are disconnecting,
-	 * closing the GUI and the connection for the server.
-	 */
-	
-	/** This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+    /**
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     public void Back(ActionEvent event) throws IOException {
-        // Navigate back to appropriate menu based on user type
-        String menuFile = UserSessionHelper.isGuest() ? "/gui/GuestMenu.fxml" : "/gui/SubMenu.fxml";
-        String cssFile = UserSessionHelper.isGuest() ? "/gui/GuestMenu.css" : "/gui/SubMenu.css";
-        String title = UserSessionHelper.isGuest() ? "Guest Menu" : "Subscriber Menu";
-        
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(menuFile));
-        Parent root = loader.load();
-        
-        // If subscriber, set the subscriber ID
-        if (UserSessionHelper.isSubscriber()) {
-            try {
-                Object controller = loader.getController();
-                if (controller instanceof SubMenuController) {
-                    ((SubMenuController) controller).setSubscriberID(UserSessionHelper.getSubscriberID());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        scene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-        stage.setScene(scene);
-        stage.setTitle(title);
-        
-        stage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        stage.show();
-        ((Node) event.getSource()).getScene().getWindow().hide();
+        // Use the existing navigation logic that handles all user types
+        UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
     
     
 
+    /**
+     * Handles the Reserve button click.
+     * Validates input and sends reservation request to the server.
+     */
     @FXML
     private void handleReserve() {
 
@@ -379,18 +355,22 @@ public class ReserveTableController {
         }).start();
     }
 
-        private String generateConfirmationCode() {
-            String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
-            StringBuilder code = new StringBuilder();
-            Random random = new Random();
+    /**
+     * Generates a random 6-character confirmation code.
+     * Uses alphanumeric characters (excluding confusing characters like I, O, 0, 1).
+     * 
+     * @return A randomly generated confirmation code string
+     */
+    private String generateConfirmationCode() {
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
+        StringBuilder code = new StringBuilder();
+        Random random = new Random();
 
-            for (int i = 0; i < 6; i++) {
-                code.append(chars.charAt(random.nextInt(chars.length())));
-            }
-            return code.toString();
-        
-
+        for (int i = 0; i < 6; i++) {
+            code.append(chars.charAt(random.nextInt(chars.length())));
         }
+        return code.toString();
+    }
         
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

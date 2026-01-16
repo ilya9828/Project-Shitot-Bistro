@@ -5,11 +5,11 @@ import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -73,21 +73,21 @@ public class RegisterNewSubscriberController {
         // Validate all fields are filled
         if (fullName.isEmpty() || phone.isEmpty() || email.isEmpty()) {
             statusLabel.setText("Please fill all fields.");
-            showError("Please fill all required fields.");
+            AlertHelper.showError("Error", "Please fill all required fields.");
             return;
         }
 
         // Validate email format
         if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
             statusLabel.setText("Invalid email format.");
-            showError("Please enter a valid email address.");
+            AlertHelper.showError("Error", "Please enter a valid email address.");
             return;
         }
 
         // Validate phone number format (basic validation)
         if (!phone.matches("\\d{10,12}")) {
             statusLabel.setText("Invalid phone number format.");
-            showError("Please enter a valid phone number (10-12 digits).");
+            AlertHelper.showError("Error", "Please enter a valid phone number (10-12 digits).");
             return;
         }
 
@@ -110,12 +110,12 @@ public class RegisterNewSubscriberController {
         String response = ChatClient.fromserverString;
         if ("SubscriberAdded".equals(response)) {
             statusLabel.setText("");
-            showInfo("Subscriber registered successfully!");
+            AlertHelper.showSuccess("Success", "Subscriber registered successfully!");
             // Clear all fields after successful save
             clearFields();
         } else if ("SubscriberExists".equals(response)) {
             statusLabel.setText("");
-            showError("Subscriber with this phone number already exists.");
+            AlertHelper.showError("Error", "Subscriber with this phone number already exists.");
         } else {
             statusLabel.setText("");
             // Show more detailed error message
@@ -125,7 +125,7 @@ public class RegisterNewSubscriberController {
             } else {
                 errorMsg += "Please try again.";
             }
-            showError(errorMsg);
+            AlertHelper.showError("Error", errorMsg);
         }
 
         ChatClient.ResetServerString();
@@ -142,29 +142,17 @@ public class RegisterNewSubscriberController {
     }
 
     /**
-     * This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     public void Back(ActionEvent event) throws IOException {
         UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
 
-    private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
-
-    private void showInfo(String msg) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Success");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
+    // Alert methods removed - now using AlertHelper static methods
 }
 

@@ -5,19 +5,15 @@ import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.stage.Stage;
 
 /**
  * Controller for the Exit Waiting List screen.
@@ -76,21 +72,21 @@ public class ExitWaitingListController {
 	        phoneOrEmail = phoneOrEmailField.getText().trim();
 	
 	        if (phoneOrEmail.isEmpty()) {
-	            showError("Please enter your phone number or email address.");
+	            AlertHelper.showError("Error", "Please enter your phone number or email address.");
 	            return;
 	        }
-	
+	        
 	        // Basic validation
 	        if (!phoneOrEmail.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$") && 
 	            !phoneOrEmail.matches("\\d{10,12}")) {
-	            showError("Please enter a valid phone number or email address.");
+	            AlertHelper.showError("Error", "Please enter a valid phone number or email address.");
 	            return;
 	        }
     	} else {
     		// For subscribers, we only send subscriberID; server finds phone/email
     		phoneOrEmail = UserSessionHelper.getSubscriberID();
     		if (phoneOrEmail == null || phoneOrEmail.isEmpty()) {
-    			showError("Subscriber ID missing. Please re-login.");
+    			AlertHelper.showError("Error", "Subscriber ID missing. Please re-login.");
     			return;
     		}
     	}
@@ -132,14 +128,14 @@ public class ExitWaitingListController {
                     if (!isSubscriber) {
                     	phoneOrEmailField.clear();
                     }
-                    showInfo("Successfully removed from waiting list!");
+                    AlertHelper.showInfo("Success", "Successfully removed from waiting list!");
                 } else {
                     statusLabel.setText("");
                     String errorMsg = "Failed to exit waiting list.";
                     if (response != null && response.contains(":")) {
                         errorMsg = response.substring(response.indexOf(":") + 1).trim();
                     }
-                    showError(errorMsg);
+                    AlertHelper.showError("Error", errorMsg);
                 }
             });
         }).start();
@@ -151,64 +147,10 @@ public class ExitWaitingListController {
      */
     @FXML
     public void Back(ActionEvent event) throws IOException {
-        // Navigate back to appropriate menu based on user type
-        boolean isGuest = UserSessionHelper.isGuest();
-        String menuFile = isGuest ? "/gui/GuestMenu.fxml" : "/gui/SubMenu.fxml";
-        String cssFile = isGuest ? "/gui/GuestMenu.css" : "/gui/SubMenu.css";
-        String title = isGuest ? "Guest Menu" : "Subscriber Menu";
-        
-        FXMLLoader menuLoader = new FXMLLoader(getClass().getResource(menuFile));
-        Parent menuRoot = menuLoader.load();
-        
-        // If subscriber, pass subscriberID to SubMenuController
-        if (!isGuest) {
-            try {
-                Object controller = menuLoader.getController();
-                if (controller instanceof SubMenuController) {
-                    ((SubMenuController) controller).setSubscriberID(UserSessionHelper.getSubscriberID());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        
-        Stage menuStage = new Stage();
-        Scene menuScene = new Scene(menuRoot);
-        menuScene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-        menuStage.setScene(menuScene);
-        menuStage.setTitle(title);
-        
-        menuStage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        menuStage.show();
-        ((Node) event.getSource()).getScene().getWindow().hide();
+        // Use centralized navigation that handles context restoration
+        UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    private void showInfo(String msg) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Success");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
-
-    private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
+    // Alert methods removed - now using AlertHelper static methods
 }
 

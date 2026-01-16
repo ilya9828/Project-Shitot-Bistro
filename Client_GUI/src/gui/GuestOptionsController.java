@@ -22,11 +22,13 @@ public class GuestOptionsController extends BaseMenuController {
     /**
      * Handles the "Back" button click.
      * Navigates back to the Manager/Staff menu.
+     * Uses fromMenu=true to restore context if we came from Staff/Manager.
      */
     @FXML
     private void handleBack(ActionEvent event) {
         try {
-            UserSessionHelper.navigateBackToMenu((Node) event.getSource());
+            // fromMenu=true will restore context and go back to Staff/Manager if original context exists
+            UserSessionHelper.navigateBackToMenu((Node) event.getSource(), true);
         } catch (IOException e) {
             System.err.println("Failed to navigate back to menu: " + e.getMessage());
             e.printStackTrace();

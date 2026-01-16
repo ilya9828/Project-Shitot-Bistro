@@ -12,14 +12,10 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Button;
-import javafx.stage.Stage;
 
 /**
  * Controller for the Show History screen.
@@ -166,44 +162,8 @@ public class ShowHistoryController {
      */
     @FXML
     private void Back(ActionEvent event) throws IOException {
-        String menuFile = "/gui/SubMenu.fxml";
-        String cssFile = "/gui/SubMenu.css";
-        String title = "Subscriber Menu";
-        
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(menuFile));
-        Parent root = loader.load();
-        
-        // Set the subscriber ID
-        try {
-            Object controller = loader.getController();
-            if (controller instanceof SubMenuController) {
-                ((SubMenuController) controller).setSubscriberID(subscriberID);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        scene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-        stage.setScene(scene);
-        stage.setTitle(title);
-        
-        stage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        stage.show();
-        ((javafx.scene.Node) event.getSource()).getScene().getWindow().hide();
+        // Use centralized navigation that handles context restoration
+        UserSessionHelper.navigateBackToMenu((javafx.scene.Node) event.getSource());
     }
 }
 

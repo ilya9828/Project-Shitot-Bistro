@@ -1,23 +1,18 @@
 package gui;
 
 import java.io.IOException;
-import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import entities.Payment;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 
 /**
  * Controller for the Pay Bill screen.
@@ -106,7 +101,7 @@ public class PayBillController {
         String confirmationCode = confirmationCodeField.getText();
         
         if (confirmationCode == null || confirmationCode.trim().isEmpty()) {
-            showError("Please enter a confirmation code.");
+            AlertHelper.showError("Error", "Please enter a confirmation code.");
             return;
         }
 
@@ -115,19 +110,19 @@ public class PayBillController {
 
         // Validate card details
         if (cardNumberField.getText() == null || cardNumberField.getText().trim().isEmpty()) {
-            showError("Please enter card number.");
+            AlertHelper.showError("Error", "Please enter card number.");
             return;
         }
         if (cardHolderNameField.getText() == null || cardHolderNameField.getText().trim().isEmpty()) {
-            showError("Please enter cardholder name.");
+            AlertHelper.showError("Error", "Please enter cardholder name.");
             return;
         }
         if (expiryDateField.getText() == null || expiryDateField.getText().trim().isEmpty()) {
-            showError("Please enter expiry date (MM/YY).");
+            AlertHelper.showError("Error", "Please enter expiry date (MM/YY).");
             return;
         }
         if (cvvField.getText() == null || cvvField.getText().trim().isEmpty()) {
-            showError("Please enter CVV.");
+            AlertHelper.showError("Error", "Please enter CVV.");
             return;
         }
 
@@ -179,7 +174,7 @@ public class PayBillController {
                     ChatClient.ResetServerString();
 
                     if ("PaymentSuccess".equals(response)) {
-                        showSuccess("Payment successful!\n" +
+                        AlertHelper.showSuccess("Payment Success", "Payment successful!\n" +
                                    "Confirmation Code: " + confirmationCode + "\n" +
                                    "Payment Method: " + paymentMethod + "\n" +
                                    "Amount: " + totalBillLabel.getText());
@@ -190,22 +185,22 @@ public class PayBillController {
                         statusLabel.setText("Payment failed. Please try again.");
                         payButton.setDisable(false);
                         String errorMsg = response.contains(":") ? response.substring(response.indexOf(":") + 1).trim() : "Payment processing failed. Please try again.";
-                        showError(errorMsg);
+                        AlertHelper.showError("Payment Error", errorMsg);
                     } else if (response.isEmpty()) {
                         statusLabel.setText("No response from server. Please try again.");
                         payButton.setDisable(false);
-                        showError("No response from server. Please try again.");
+                        AlertHelper.showError("Error", "No response from server. Please try again.");
                     } else {
                         statusLabel.setText("Error: " + response);
                         payButton.setDisable(false);
-                        showError("Server error: " + response);
+                        AlertHelper.showError("Server Error", "Server error: " + response);
                     }
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     statusLabel.setText("Error communicating with server.");
                     payButton.setDisable(false);
-                    showError("Error communicating with server: " + e.getMessage());
+                    AlertHelper.showError("Error", "Error communicating with server: " + e.getMessage());
                     e.printStackTrace();
                 });
             }
@@ -214,8 +209,8 @@ public class PayBillController {
 
 
     /**
-     * Handles the Cancel button click event.
-     * Closes the Pay Bill screen and returns to the menu.
+     * Handles the Back button click event.
+     * Returns to the menu.
      */
     @FXML
     private void handleCancel() {
@@ -226,72 +221,13 @@ public class PayBillController {
      * Closes the current window and returns to the appropriate menu.
      */
     private void closeWindow() {
-        Stage stage = (Stage) btnCancel.getScene().getWindow();
-        stage.close();
-        
-        // Navigate back to appropriate menu based on user type
         try {
-            boolean isSubscriber = UserSessionHelper.isSubscriber();
-            String fxmlFile = isSubscriber ? "/gui/SubMenu.fxml" : "/gui/GuestMenu.fxml";
-            String cssFile = isSubscriber ? "/gui/SubMenu.css" : "/gui/GuestMenu.css";
-            String title = isSubscriber ? "Subscriber Menu" : "Guest Menu";
-            
-            FXMLLoader menuLoader = new FXMLLoader(getClass().getResource(fxmlFile));
-            Parent menuRoot = menuLoader.load();
-            Stage menuStage = new Stage();
-            Scene menuScene = new Scene(menuRoot);
-            menuScene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-            menuStage.setScene(menuScene);
-            menuStage.setTitle(title);
-            
-            menuStage.setOnCloseRequest(closeEvent -> {
-                try {
-                    if (ClientUI.chat != null) {
-                        HashMap<String, String> disconnectMsg = new HashMap<>();
-                        disconnectMsg.put("Disconnect", "");
-                        ClientUI.chat.accept(disconnectMsg);
-                        Thread.sleep(200);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            
-            menuStage.show();
+            // Use centralized navigation that handles context restoration
+            // navigateBackToMenu will replace the scene in the current window, so we don't need to close it
+            UserSessionHelper.navigateBackToMenu(btnCancel);
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    /**
-     * Handles the Exit button click event.
-     * Disconnects from the server and exits the application.
-     */
-
-    /**
-     * Shows a success alert dialog.
-     * 
-     * @param message The success message to display
-     */
-    private void showSuccess(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Payment Success");
-        alert.setHeaderText("Payment Completed Successfully");
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-
-    /**
-     * Shows an error alert dialog.
-     * 
-     * @param message The error message to display
-     */
-    private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
     }
 }
 

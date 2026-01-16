@@ -149,7 +149,7 @@ public class EditTableController {
         Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
         confirmAlert.setTitle("Confirm Deletion");
         confirmAlert.setHeaderText("Delete Table");
-        confirmAlert.setContentText("Are you sure you want to delete Table ID " + selectedId + "?");
+        confirmAlert.setContentText("Are you sure you want to delete table number " + selectedId + "? , it might effect future reservations");
         
         confirmAlert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
         

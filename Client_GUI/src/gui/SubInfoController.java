@@ -65,9 +65,11 @@ public class SubInfoController {
     }
 
     /**
-     * This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     @FXML
     public void Back(ActionEvent event) throws IOException {
@@ -75,8 +77,9 @@ public class SubInfoController {
     }
 
     /**
-     * This method is getting list of subscribers and uploading it to the table view
-     * @param subscribers - list of subscribers as strings (format: "subscriberID, name, email, phone")
+     * Loads a list of subscribers and displays them in the table view.
+     * 
+     * @param subscribers List of subscribers as strings (format: "subscriberID, name, email, phone")
      */
     public void loadSubInfo(List<String> subscribers) {
         // Convert the list to an observable list and set it to the table

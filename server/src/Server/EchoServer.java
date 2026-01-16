@@ -1,7 +1,6 @@
 package Server;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import common.UserSelect;
@@ -16,7 +15,6 @@ import entities.Payment;
  * This class is defining as a server
  */
 public class EchoServer extends AbstractServer {
-	int connectionPort;
 	public static HashMap<String, String> clientsstatusconnections = new HashMap<String, String>();
 	public static String popUpString;
 	public static Scene tableScene; 
@@ -29,7 +27,6 @@ public class EchoServer extends AbstractServer {
 	 */
 	public EchoServer(int port) {
 		super(port);
-		connectionPort = port;
 	}
 
 
@@ -91,6 +88,14 @@ public class EchoServer extends AbstractServer {
 
 
 		
+		// Type check before casting to avoid unchecked cast warning
+		if (!(msg instanceof HashMap)) {
+			System.out.println("Error: Received unexpected message type: " + msg.getClass().getName());
+			this.sendToAllClients("Error");
+			return;
+		}
+		
+		@SuppressWarnings("unchecked")
 		HashMap<String, String> infoFromUser = (HashMap<String, String>) msg;
 		String menuChoiceString = (infoFromUser.keySet().iterator().next());
 		

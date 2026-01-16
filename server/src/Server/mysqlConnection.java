@@ -1,7 +1,6 @@
 package Server;
 import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -62,7 +61,7 @@ public class mysqlConnection {
 				// Start the scheduled task to check for missing reports monthly
 				startMonthlyReportScheduler();
 			} catch (Exception e) {
-				System.err.println("⚠️ Warning: Failed to generate monthly reports on startup: " + e.getMessage());
+				System.err.println("Warning: Failed to generate monthly reports: " + e.getMessage());
 			}
 		}
 		
@@ -79,7 +78,6 @@ public class mysqlConnection {
 	 */
 	public static void generateMonthlyReportsIfNeeded() {
 		if (conn == null) {
-			System.err.println("❌ Cannot generate monthly reports - database connection is null");
 			return;
 		}
 		
@@ -87,7 +85,7 @@ public class mysqlConnection {
 			// Find the earliest order date to determine how far back to check
 			java.time.YearMonth earliestMonth = findEarliestMonthWithOrders();
 			if (earliestMonth == null) {
-				System.out.println("ℹ️ No orders found in database, skipping report generation");
+				System.out.println("No orders found in database, skipping report generation");
 				return;
 			}
 			
@@ -98,10 +96,7 @@ public class mysqlConnection {
 			java.time.LocalDate firstDayOfPreviousMonth = lastDayOfPreviousMonth.withDayOfMonth(1);
 			java.time.YearMonth previousMonth = java.time.YearMonth.from(firstDayOfPreviousMonth);
 			
-			System.out.println("🔍 Checking for missing reports from " + earliestMonth + " to " + previousMonth);
-			
 			// Check each month from earliest to previous month
-			int generatedCount = 0;
 			java.time.YearMonth currentCheck = earliestMonth;
 			
 			while (!currentCheck.isAfter(previousMonth)) {
@@ -112,32 +107,21 @@ public class mysqlConnection {
 				// Check if delay report exists
 				String delayReport = findSavedReport("delay", monthsJson);
 				if (delayReport == null) {
-					System.out.println("📊 Auto-generating delay report for " + currentCheck);
 					generateReportForMonth(currentCheck, "delay");
-					generatedCount++;
 				}
 				
 				// Check if reservation report exists
 				String reservationReport = findSavedReport("reservation", monthsJson);
 				if (reservationReport == null) {
-					System.out.println("📊 Auto-generating reservation report for " + currentCheck);
 					generateReportForMonth(currentCheck, "reservation");
-					generatedCount++;
 				}
 				
 				// Move to next month
 				currentCheck = currentCheck.plusMonths(1);
 			}
 			
-			if (generatedCount > 0) {
-				System.out.println("✅ Generated " + generatedCount + " missing report(s)");
-			} else {
-				System.out.println("ℹ️ All reports are up to date");
-			}
-			
 		} catch (Exception e) {
-			System.err.println("❌ Error generating monthly reports: " + e.getMessage());
-			e.printStackTrace();
+			System.err.println("Couldnt generate monthly reports: " + e.getMessage());
 		}
 	}
 	
@@ -159,8 +143,7 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error finding earliest month with orders: " + e.getMessage());
-			e.printStackTrace();
+			// Silent failure
 		}
 		return null;
 	}
@@ -181,8 +164,7 @@ public class mysqlConnection {
 				GetReservationChartReport(monthsStr);
 			}
 		} catch (Exception e) {
-			System.err.println("❌ Error generating " + reportType + " report for " + month + ": " + e.getMessage());
-			e.printStackTrace();
+			// Silent failure
 		}
 	}
 	
@@ -199,7 +181,6 @@ public class mysqlConnection {
 	private static void startMonthlyReportScheduler() {
 		// Don't start if already running
 		if (reportScheduler != null && !reportScheduler.isShutdown()) {
-			System.out.println("ℹ️ Monthly report scheduler is already running.");
 			return;
 		}
 		
@@ -258,28 +239,17 @@ public class mysqlConnection {
 		// Schedule the task to run once at the calculated time
 		reportScheduler.schedule(() -> {
 			try {
-				System.out.println("🕐 Scheduled monthly report check running on " + 
+				System.out.println("Scheduled monthly report check running on " + 
 					java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
 				generateMonthlyReportsIfNeeded();
 				
 				// After running, schedule the next check for the 1st of the following month
 				scheduleNextMonthlyCheck();
 			} catch (Exception e) {
-				System.err.println("❌ Error in scheduled monthly report generation: " + e.getMessage());
-				e.printStackTrace();
 				// Still schedule the next check even if this one failed
 				scheduleNextMonthlyCheck();
 			}
 		}, delayMinutes, TimeUnit.MINUTES);
-		
-		java.time.Duration duration = java.time.Duration.ofMinutes(delayMinutes);
-		long days = duration.toDays();
-		long hours = duration.toHours() % 24;
-		long minutes = duration.toMinutes() % 60;
-		
-		System.out.println("✅ Monthly report scheduler started. Next check on " + 
-			firstOfNextMonth.format(java.time.format.DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' HH:mm")) +
-			" (in approximately " + days + " days, " + hours + " hours, " + minutes + " minutes)");
 	}
 	
 	/**
@@ -287,7 +257,6 @@ public class mysqlConnection {
 	 */
 	public static void stopMonthlyReportScheduler() {
 		if (reportScheduler != null && !reportScheduler.isShutdown()) {
-			System.out.println("🛑 Stopping monthly report scheduler...");
 			reportScheduler.shutdown();
 			try {
 				if (!reportScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -383,7 +352,6 @@ public class mysqlConnection {
 	public static String insertSubscriber(String fullName, String phone, String subscriberId, String email) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 		
@@ -420,10 +388,6 @@ public class mysqlConnection {
 			}
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error inserting subscriber");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			
 			// Check if error is due to duplicate entry
@@ -433,9 +397,138 @@ public class mysqlConnection {
 			// Return more detailed error for debugging
 			return "Error: " + e.getMessage();
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error inserting subscriber");
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
+		}
+	}
+
+	/**
+	 * Check if a reservation time is within the given opening hours
+	 * @param reservationTime The reservation time
+	 * @param openingTimeStr Opening time in HH:mm format
+	 * @param closingTimeStr Closing time in HH:mm format
+	 * @return true if the reservation time is within opening hours, false otherwise
+	 */
+	private static boolean isReservationTimeWithinHours(java.time.LocalDateTime reservationTime, String openingTimeStr, String closingTimeStr) {
+		try {
+			java.time.LocalTime reservationLocalTime = reservationTime.toLocalTime();
+			java.time.LocalTime openingTime = java.time.LocalTime.parse(openingTimeStr);
+			java.time.LocalTime closingTime = java.time.LocalTime.parse(closingTimeStr);
+			
+			// Handle case where closing time is 00:00 (midnight, meaning open until end of day)
+			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
+				return !reservationLocalTime.isBefore(openingTime);
+			} else {
+				return !reservationLocalTime.isBefore(openingTime) && !reservationLocalTime.isAfter(closingTime);
+			}
+		} catch (Exception e) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Get reservations for a specific date
+	 * @param date The date to check (format: yyyy-MM-dd)
+	 * @return List of reservations with name, order_time_date, confirmation_code, email, and phone
+	 */
+	private static List<java.util.Map<String, Object>> getReservationsForDate(String date) {
+		List<java.util.Map<String, Object>> reservations = new ArrayList<>();
+		
+		if (conn == null) {
+			return reservations;
+		}
+		
+		try {
+			String sql = "SELECT name, order_time_date, confirmation_code, email, phone FROM orders WHERE DATE(order_time_date) = ? AND status = 'PENDING'";
+			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+				pstmt.setString(1, date);
+				try (ResultSet rs = pstmt.executeQuery()) {
+					while (rs.next()) {
+						java.util.Map<String, Object> reservation = new java.util.HashMap<>();
+						reservation.put("name", rs.getString("name"));
+						reservation.put("order_time_date", rs.getTimestamp("order_time_date"));
+						reservation.put("confirmation_code", rs.getString("confirmation_code"));
+						reservation.put("email", rs.getString("email"));
+						reservation.put("phone", rs.getString("phone"));
+						reservations.add(reservation);
+					}
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+		return reservations;
+	}
+	
+	/**
+	 * Check and notify about conflicting reservations when opening hours change
+	 * Also updates the status of conflicting reservations to "Cancelled by resturant"
+	 * @param dateStr The date to check (format: yyyy-MM-dd)
+	 * @param oldOpeningTime Old opening time in HH:mm format (can be null)
+	 * @param oldClosingTime Old closing time in HH:mm format (can be null)
+	 * @param newOpeningTime New opening time in HH:mm format
+	 * @param newClosingTime New closing time in HH:mm format
+	 */
+	private static void checkConflictingReservations(String dateStr, String oldOpeningTime, String oldClosingTime, String newOpeningTime, String newClosingTime) {
+		// If old hours are null, use default (12:00-22:00)
+		if (oldOpeningTime == null || oldClosingTime == null) {
+			oldOpeningTime = "12:00";
+			oldClosingTime = "22:00";
+		}
+		
+		// Get all reservations for this date
+		List<java.util.Map<String, Object>> reservations = getReservationsForDate(dateStr);
+		
+		if (reservations.isEmpty()) {
+			return; // No reservations to check
+		}
+		
+		for (java.util.Map<String, Object> reservation : reservations) {
+			Timestamp orderTime = (Timestamp) reservation.get("order_time_date");
+			String confirmationCode = (String) reservation.get("confirmation_code");
+			String email = (String) reservation.get("email");
+			String phone = (String) reservation.get("phone");
+			
+			if (orderTime != null) {
+				java.time.LocalDateTime reservationDateTime = orderTime.toLocalDateTime();
+				
+				// Check if reservation was valid under old hours but invalid under new hours
+				boolean validUnderOldHours = isReservationTimeWithinHours(reservationDateTime, oldOpeningTime, oldClosingTime);
+				boolean validUnderNewHours = isReservationTimeWithinHours(reservationDateTime, newOpeningTime, newClosingTime);
+				
+				if (validUnderOldHours && !validUnderNewHours) {
+					// Reservation conflicts with new hours
+					String message = "we are sorry the restaurant will be closed by the reserved times";
+					
+					// Send notification to customer
+					if (confirmationCode != null && !confirmationCode.isEmpty()) {
+						// Send SMS if phone is available
+						if (phone != null && !phone.trim().isEmpty()) {
+							System.out.println("[Opening Hours Change] SMS was sent to customer:(Code: " + confirmationCode + ") - " + message);
+						}
+						
+						// Send Email if email is available
+						if (email != null && !email.trim().isEmpty()) {
+							System.out.println("[Opening Hours Change] email was sent to customer:(Code: " + confirmationCode + ") - " + message);
+						}
+					}
+					
+					// Update status to "Cancelled by resturant"
+					if (confirmationCode != null && !confirmationCode.isEmpty()) {
+						try {
+							String updateSql = "UPDATE orders SET status = 'Cancelled by resturant' WHERE confirmation_code = ?";
+							try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+								updateStmt.setString(1, confirmationCode);
+								updateStmt.executeUpdate();
+							}
+						} catch (SQLException e) {
+							System.err.println("Error updating reservation status for " + confirmationCode + ": " + e.getMessage());
+							e.printStackTrace();
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -450,7 +543,6 @@ public class mysqlConnection {
 	public static String updateOpeningHours(String openingTime, String closingTime, String durationType, String durationValue) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -464,6 +556,21 @@ public class mysqlConnection {
 				}
 				String dayOfWeek = parts[0].trim();
 				String dateStr = parts[1].trim();
+				
+				// Get old opening hours before updating
+				String oldHoursStr = getOpeningHours(dateStr);
+				String oldOpeningTime = null;
+				String oldClosingTime = null;
+				if (oldHoursStr != null && !oldHoursStr.isEmpty()) {
+					String[] oldHours = oldHoursStr.split("-");
+					if (oldHours.length == 2) {
+						oldOpeningTime = oldHours[0].trim();
+						oldClosingTime = oldHours[1].trim();
+					}
+				}
+				
+				// Check for conflicting reservations before updating
+				checkConflictingReservations(dateStr, oldOpeningTime, oldClosingTime, openingTime, closingTime);
 				
 				String sql = "INSERT INTO opening_hours (day_of_week, opening_time, closing_time, specific_date, is_active, is_permanent) " +
 				             "VALUES (?, ?, ?, ?, true, false) " +
@@ -491,6 +598,23 @@ public class mysqlConnection {
 					// Convert Java DayOfWeek to our day format (e.g., MONDAY -> Monday)
 					String dayFormatted = currentDayOfWeek.charAt(0) + currentDayOfWeek.substring(1).toLowerCase();
 					
+					String dateStr = currentDate.toString();
+					
+					// Get old opening hours before updating
+					String oldHoursStr = getOpeningHours(dateStr);
+					String oldOpeningTime = null;
+					String oldClosingTime = null;
+					if (oldHoursStr != null && !oldHoursStr.isEmpty()) {
+						String[] oldHours = oldHoursStr.split("-");
+						if (oldHours.length == 2) {
+							oldOpeningTime = oldHours[0].trim();
+							oldClosingTime = oldHours[1].trim();
+						}
+					}
+					
+					// Check for conflicting reservations before updating
+					checkConflictingReservations(dateStr, oldOpeningTime, oldClosingTime, openingTime, closingTime);
+					
 					// Insert opening hours for this specific date
 					String sql = "INSERT INTO opening_hours (day_of_week, opening_time, closing_time, specific_date, is_active, is_permanent) " +
 					             "VALUES (?, ?, ?, ?, true, false) " +
@@ -515,6 +639,73 @@ public class mysqlConnection {
 				for (String day : selectedDays) {
 					day = day.trim();
 					if (!day.isEmpty()) {
+						// Get old permanent opening hours for this day before updating
+						String oldOpeningTime = null;
+						String oldClosingTime = null;
+						try {
+							String sqlOld = "SELECT opening_time, closing_time FROM opening_hours WHERE day_of_week = ? AND is_permanent = 1 AND specific_date IS NULL AND is_active = true LIMIT 1";
+							try (PreparedStatement pstmtOld = conn.prepareStatement(sqlOld)) {
+								pstmtOld.setString(1, day);
+								try (ResultSet rsOld = pstmtOld.executeQuery()) {
+									if (rsOld.next()) {
+										java.sql.Time oldOpening = rsOld.getTime("opening_time");
+										java.sql.Time oldClosing = rsOld.getTime("closing_time");
+										if (oldOpening != null && oldClosing != null) {
+											oldOpeningTime = oldOpening.toString().substring(0, 5);
+											oldClosingTime = oldClosing.toString().substring(0, 5);
+										}
+									}
+								}
+							}
+						} catch (SQLException e) {
+							// If error getting old hours, continue with null (will use defaults)
+						}
+						
+						// Check all future reservations for this day of week
+						// Get all future PENDING reservations and group by date to avoid duplicate checks
+						java.util.Set<String> checkedDates = new java.util.HashSet<>();
+						try {
+							String sqlReservations = "SELECT name, order_time_date FROM orders WHERE order_time_date >= NOW() AND status = 'PENDING' ORDER BY order_time_date";
+							try (PreparedStatement pstmtRes = conn.prepareStatement(sqlReservations);
+							     ResultSet rsRes = pstmtRes.executeQuery()) {
+								while (rsRes.next()) {
+									Timestamp orderTime = rsRes.getTimestamp("order_time_date");
+									if (orderTime != null) {
+										java.time.LocalDateTime reservationDateTime = orderTime.toLocalDateTime();
+										java.time.DayOfWeek reservationDayOfWeek = reservationDateTime.getDayOfWeek();
+										String reservationDayFormatted = reservationDayOfWeek.toString().charAt(0) + reservationDayOfWeek.toString().substring(1).toLowerCase();
+										
+										// Check if this reservation is for the day we're updating
+										if (reservationDayFormatted.equals(day)) {
+											String dateStr = reservationDateTime.toLocalDate().toString();
+											
+											// Only check each date once
+											if (!checkedDates.contains(dateStr)) {
+												checkedDates.add(dateStr);
+												
+												// Get specific date hours if they exist (they override permanent)
+												String specificHoursStr = getOpeningHours(dateStr);
+												String dateOldOpeningTime = oldOpeningTime;
+												String dateOldClosingTime = oldClosingTime;
+												
+												if (specificHoursStr != null && !specificHoursStr.isEmpty()) {
+													String[] specificHours = specificHoursStr.split("-");
+													if (specificHours.length == 2) {
+														dateOldOpeningTime = specificHours[0].trim();
+														dateOldClosingTime = specificHours[1].trim();
+													}
+												}
+												
+												// Check if reservation conflicts
+												checkConflictingReservations(dateStr, dateOldOpeningTime, dateOldClosingTime, openingTime, closingTime);
+											}
+										}
+									}
+								}
+							}
+						} catch (SQLException e) {
+						}
+						
 						// First, deactivate ALL existing permanent entries for this day (to handle multiple permanent entries)
 						String deactivatePermanentSql = "UPDATE opening_hours SET is_active = false WHERE day_of_week = ? AND is_permanent = 1 AND specific_date IS NULL";
 						try (PreparedStatement deactivatePermanentStmt = conn.prepareStatement(deactivatePermanentSql)) {
@@ -549,14 +740,9 @@ public class mysqlConnection {
 			return "OpeningHoursUpdated";
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error updating opening hours");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error updating opening hours");
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -569,7 +755,6 @@ public class mysqlConnection {
 	public static String getNextTableId() {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -583,10 +768,6 @@ public class mysqlConnection {
 			}
 			return "1"; // Default if no tables exist
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting next table ID");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -600,7 +781,6 @@ public class mysqlConnection {
 	public static String insertTable(int capacity) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -620,14 +800,9 @@ public class mysqlConnection {
 			}
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error inserting table");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error inserting table");
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -640,7 +815,6 @@ public class mysqlConnection {
 	public static String getAllTableIds() {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -657,10 +831,6 @@ public class mysqlConnection {
 			
 			return String.join(",", tableIds);
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting all table IDs");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -674,7 +844,6 @@ public class mysqlConnection {
 	public static String getTableData(String tableId) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -693,10 +862,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting table data");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		} catch (NumberFormatException e) {
@@ -713,7 +878,6 @@ public class mysqlConnection {
 	public static String updateTable(int tableId, int capacity) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -732,10 +896,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error updating table");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -749,7 +909,6 @@ public class mysqlConnection {
 	public static String deleteTable(int tableId) {
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Error: Database not connected";
 		}
 
@@ -767,10 +926,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error deleting table");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -786,7 +941,6 @@ public class mysqlConnection {
 		
 		// Check if connection is null
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return occupiedTables; // Return empty list
 		}
 
@@ -827,10 +981,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting occupied tables");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -845,12 +995,11 @@ public class mysqlConnection {
 		List<String> waitingList = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("Database connection is null!");
 			return waitingList;
 		}
 
 		try {
-			String sql = "SELECT waitingID, number_of_guests, phone, date, status, created_at FROM waitingentry WHERE created_at >= NOW() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY) ORDER BY waitingID";
+			String sql = "SELECT waitingID, number_of_guests, phone, date, status, created_at FROM waitingentry WHERE status IN ('WAITING', 'P_WAITING') ORDER BY waitingID";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql);
 			     ResultSet rs = pstmt.executeQuery()) {
@@ -879,10 +1028,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting waiting list");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -897,7 +1042,6 @@ public class mysqlConnection {
 		List<String> currentReservations = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return currentReservations;
 		}
 
@@ -935,10 +1079,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting current reservations");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -953,7 +1093,6 @@ public class mysqlConnection {
 		List<String> subInfo = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return subInfo;
 		}
 
@@ -979,10 +1118,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting subscriber info");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -998,7 +1133,6 @@ public class mysqlConnection {
 		List<String> confirmationCodes = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return confirmationCodes;
 		}
 
@@ -1016,7 +1150,6 @@ public class mysqlConnection {
 					int subscriberIdInt = Integer.parseInt(subscriberID);
 					pstmt.setInt(1, subscriberIdInt);
 				} catch (NumberFormatException e) {
-					System.err.println("❌ Invalid subscriber ID format: " + subscriberID);
 					return confirmationCodes;
 				}
 				try (ResultSet rs = pstmt.executeQuery()) {
@@ -1029,10 +1162,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting subscriber today confirmation codes");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -1046,7 +1175,6 @@ public class mysqlConnection {
 	 */
 	public static String validateUserID(String userID) {
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			return "Invalid";
 		}
 
@@ -1088,10 +1216,6 @@ public class mysqlConnection {
 			return "Invalid";
 
 		} catch (SQLException e) {
-			System.err.println("❌ Error validating user ID");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			return "Invalid";
 		}
@@ -1140,10 +1264,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("❌ Error reading report_history");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 		}
 		return null;
 	}
@@ -1154,16 +1274,12 @@ public class mysqlConnection {
 	 */
 	private static void saveReport(String reportType, String monthsJson, String periodLabel, String payload, java.sql.Timestamp createdAt) {
 		if (conn == null) {
-			System.err.println("❌ Cannot save report - database connection is null");
 			return;
 		}
-		
-		System.out.println("💾 Attempting to save report: type=" + reportType + ", months=" + monthsJson + ", created_at=" + createdAt);
 		
 		// First, check if report already exists to prevent duplicates
 		String existingReport = findSavedReport(reportType, monthsJson);
 		if (existingReport != null) {
-			System.out.println("ℹ️ Report already exists in database, skipping save to prevent duplicate (" + reportType + ", " + monthsJson + ")");
 			return;
 		}
 		
@@ -1175,18 +1291,9 @@ public class mysqlConnection {
 			pstmt.setString(3, periodLabel);
 			pstmt.setString(4, payload);
 			pstmt.setTimestamp(5, createdAt);
-			int rowsAffected = pstmt.executeUpdate();
-			if (rowsAffected > 0) {
-				System.out.println("✅ Successfully saved report to report_history (" + reportType + ", " + monthsJson + ", created_at: " + createdAt + ")");
-			} else {
-				System.err.println("⚠️ Failed to save report - no rows affected (may be duplicate or constraint violation) - " + reportType + ", " + monthsJson);
-			}
+			pstmt.executeUpdate();
 		} catch (SQLException e) {
-			System.err.println("❌ Error saving report_history");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
-			e.printStackTrace();
+			// Silent failure
 		}
 	}
 	
@@ -1199,7 +1306,6 @@ public class mysqlConnection {
 		List<String> reportData = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			String emptyReport = "NO_DATA|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(emptyReport);
 			return reportData;
@@ -1216,7 +1322,6 @@ public class mysqlConnection {
 						java.time.YearMonth ym = java.time.YearMonth.parse(monthStr.trim());
 						months.add(ym);
 					} catch (Exception e) {
-						System.err.println("❌ Invalid month format: " + monthStr);
 					}
 				}
 			}
@@ -1237,7 +1342,6 @@ public class mysqlConnection {
 			// Try to return a saved report first
 			String cached = findSavedReport("delay", monthsJson);
 			if (cached != null) {
-				System.out.println("💾 Using cached delay report for " + monthsJson);
 				reportData.add(cached);
 				return reportData;
 			}
@@ -1248,8 +1352,6 @@ public class mysqlConnection {
 				if (i > 0) reportPeriod.append(" + ");
 				reportPeriod.append(months.get(i).getMonth().toString()).append(" ").append(months.get(i).getYear());
 			}
-			
-			System.out.println("📊 Generating Delay Chart Report for: " + reportPeriod.toString());
 			
 			// Build WHERE clause for multiple months
 			StringBuilder whereClause = new StringBuilder("(");
@@ -1281,14 +1383,10 @@ public class mysqlConnection {
 					java.sql.Timestamp monthEnd = java.sql.Timestamp.valueOf(ym.plusMonths(1).atDay(1).atStartOfDay());
 					pstmt.setTimestamp(paramIndex++, monthStart);
 					pstmt.setTimestamp(paramIndex++, monthEnd);
-					System.out.println("   Month: " + ym + " (" + monthStart + " to " + monthEnd + ")");
 				}
 				
 				try (ResultSet rs = pstmt.executeQuery()) {
-					int rowCount = 0;
 					while (rs.next()) {
-						rowCount++;
-						
 						java.sql.Timestamp orderTime = rs.getTimestamp("order_time_date");
 						java.sql.Timestamp startTime = rs.getTimestamp("startTime");
 						java.sql.Timestamp endTime = rs.getTimestamp("endTime");
@@ -1332,7 +1430,6 @@ public class mysqlConnection {
 							}
 						}
 					}
-					System.out.println("📊 Found " + rowCount + " orders in selected months");
 				}
 			}
 			
@@ -1354,45 +1451,27 @@ public class mysqlConnection {
 				totalClients
 			);
 			
-			System.out.println("📊 Report Statistics:");
-			System.out.println("   Total Clients: " + totalClients);
-			System.out.println("   On Time: " + onTimeCount + " (" + String.format("%.1f", onTimePercent) + "%)");
-			System.out.println("   Late 1-14 mins: " + late1to14Count + " (" + String.format("%.1f", late1to14Percent) + "%)");
-			System.out.println("   Late >15 mins: " + late15PlusCount + " (" + String.format("%.1f", late15PlusPercent) + "%)");
-			System.out.println("   Meal <2hrs: " + mealUnder2HrCount + " (" + String.format("%.1f", mealUnder2HrPercent) + "%)");
-			System.out.println("   Meal >2hrs: " + mealOver2HrCount + " (" + String.format("%.1f", mealOver2HrPercent) + "%)");
 			
 			// saving the report for future retrieval
-			System.out.println("💾 Preparing to save delay report...");
 			try {
 				java.sql.Timestamp createdAt = firstMonthStart(months);
-				System.out.println("💾 Created timestamp: " + createdAt);
-				System.out.println("💾 Months JSON: " + monthsToJson(months));
 				saveReport("delay", monthsToJson(months), reportPeriod.toString(), reportString, createdAt);
 			} catch (Exception e) {
-				System.err.println("⚠️ Failed to save delay report: " + e.getMessage());
 				e.printStackTrace();
 			}
 			
 			reportData.add(reportString);
-			System.out.println("✅ Report string added to list. List size: " + reportData.size());
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting delay chart report");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(errorReport);
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error in GetDelayChartReport: " + e.getMessage());
 			e.printStackTrace();
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(errorReport);
 		}
 		
-		System.out.println("📤 Returning report data. List size: " + reportData.size());
 		return reportData;
 	}
 	
@@ -1406,8 +1485,6 @@ public class mysqlConnection {
 		List<String> reportData = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
-			System.err.println("❌ Cannot generate delay chart report - no database connection");
 			// Still return a report with zeros so client knows the request was processed
 			String emptyReport = "NO_DATA|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(emptyReport);
@@ -1426,8 +1503,6 @@ public class mysqlConnection {
 			
 			String reportPeriod = firstDayOfPreviousMonth.getMonth().toString() + " " + firstDayOfPreviousMonth.getYear();
 			
-			System.out.println("📊 Generating Delay Chart Report for: " + reportPeriod);
-			System.out.println("📅 Date range: " + startOfPreviousMonth + " to " + endOfPreviousMonth);
 			
 			// Query to get orders with their visit data for the previous month
 			String sql = "SELECT o.order_time_date, v.startTime, v.endTime, o.status, o.confirmation_code " +
@@ -1448,15 +1523,9 @@ public class mysqlConnection {
 				pstmt.setTimestamp(1, startOfPreviousMonth);
 				pstmt.setTimestamp(2, endOfPreviousMonth);
 				
-				System.out.println("🔍 Executing query with parameters:");
-				System.out.println("   startOfPreviousMonth: " + startOfPreviousMonth);
-				System.out.println("   endOfPreviousMonth: " + endOfPreviousMonth);
 				
 				try (ResultSet rs = pstmt.executeQuery()) {
-					int rowCount = 0;
 					while (rs.next()) {
-						rowCount++;
-						
 						java.sql.Timestamp orderTime = rs.getTimestamp("order_time_date");
 						java.sql.Timestamp startTime = rs.getTimestamp("startTime");
 						java.sql.Timestamp endTime = rs.getTimestamp("endTime");
@@ -1502,7 +1571,6 @@ public class mysqlConnection {
 							}
 						}
 					}
-					System.out.println("📊 Found " + rowCount + " orders in the previous month");
 				}
 			}
 			
@@ -1524,36 +1592,21 @@ public class mysqlConnection {
 				totalClients
 			);
 			
-			System.out.println("📊 Report Statistics:");
-			System.out.println("   Total Clients: " + totalClients);
-			System.out.println("   On Time: " + onTimeCount + " (" + String.format("%.1f", onTimePercent) + "%)");
-			System.out.println("   Late 1-14 mins: " + late1to14Count + " (" + String.format("%.1f", late1to14Percent) + "%)");
-			System.out.println("   Late >15 mins: " + late15PlusCount + " (" + String.format("%.1f", late15PlusPercent) + "%)");
-			System.out.println("   Meal <2hrs: " + mealUnder2HrCount + " (" + String.format("%.1f", mealUnder2HrPercent) + "%)");
-			System.out.println("   Meal >2hrs: " + mealOver2HrCount + " (" + String.format("%.1f", mealOver2HrPercent) + "%)");
 			
 			reportData.add(reportString);
-			System.out.println("✅ Report string added to list. List size: " + reportData.size());
-			System.out.println("✅ Report string: " + reportString);
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting delay chart report");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			// Return empty report with error indicator
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(errorReport);
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error in GetDelayChartReport: " + e.getMessage());
 			e.printStackTrace();
 			// Return empty report with error indicator
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0|0.00|0";
 			reportData.add(errorReport);
 		}
 		
-		System.out.println("📤 Returning report data. List size: " + reportData.size());
 		return reportData;
 	}
 	
@@ -1567,7 +1620,6 @@ public class mysqlConnection {
 		List<String> reportData = new ArrayList<>();
 		
 		if (conn == null) {
-			System.err.println("❌ Database connection is null!");
 			String emptyReport = "NO_DATA|0|0.00|0|0.00|0|0|0.00|0|0.00|0|0";
 			reportData.add(emptyReport);
 			return reportData;
@@ -1584,7 +1636,6 @@ public class mysqlConnection {
 						java.time.YearMonth ym = java.time.YearMonth.parse(monthStr.trim());
 						months.add(ym);
 					} catch (Exception e) {
-						System.err.println("❌ Invalid month format: " + monthStr);
 					}
 				}
 			}
@@ -1605,7 +1656,6 @@ public class mysqlConnection {
 			// Try to use cached report
 			String cached = findSavedReport("reservation", monthsJson);
 			if (cached != null) {
-				System.out.println("💾 Using cached reservation report for " + monthsJson);
 				reportData.add(cached);
 				return reportData;
 			}
@@ -1617,7 +1667,6 @@ public class mysqlConnection {
 				reportPeriod.append(months.get(i).getMonth().toString()).append(" ").append(months.get(i).getYear());
 			}
 			
-			System.out.println("📊 Generating Reservation Chart Report for: " + reportPeriod.toString());
 			
 			// Build WHERE clause for multiple months
 			StringBuilder whereClauseOrders = new StringBuilder("(");
@@ -1728,46 +1777,27 @@ public class mysqlConnection {
 				totalWaitingListOutcomes
 			);
 			
-			System.out.println("📊 Report Statistics:");
-			System.out.println("   Total Visits: " + totalVisits);
-			System.out.println("   Successful Visits: " + successfulVisitsCount + " (" + String.format("%.1f", successfulVisitsPercent) + "%)");
-			System.out.println("   Unsuccessful Visits: " + unsuccessfulVisitsCount + " (" + String.format("%.1f", unsuccessfulVisitsPercent) + "%)");
-			System.out.println("   Total Waiting List Entries: " + totalWaitingList);
-			System.out.println("   Waiting List Outcomes: " + totalWaitingListOutcomes);
-			System.out.println("   Checked In: " + checkedInCount + " (" + String.format("%.1f", checkedInPercent) + "%)");
-			System.out.println("   Left From Waiting: " + leftFromWaitingCount + " (" + String.format("%.1f", leftFromWaitingPercent) + "%)");
 			
 			// saving the report for future retrieval
-			System.out.println("💾 Preparing to save reservation report...");
 			try {
 				java.sql.Timestamp createdAt = firstMonthStart(months);
-				System.out.println("💾 Created timestamp: " + createdAt);
-				System.out.println("💾 Months JSON: " + monthsToJson(months));
 				saveReport("reservation", monthsToJson(months), reportPeriod.toString(), reportString, createdAt);
 			} catch (Exception e) {
-				System.err.println("⚠️ Failed to save reservation report: " + e.getMessage());
 				e.printStackTrace();
 			}
 			
 			reportData.add(reportString);
-			System.out.println("✅ Report string added to list. List size: " + reportData.size());
 			
 		} catch (SQLException e) {
-			System.err.println("❌ Error getting reservation chart report");
-			System.err.println("SQL State: " + e.getSQLState());
-			System.err.println("Error Code: " + e.getErrorCode());
-			System.err.println("Message: " + e.getMessage());
 			e.printStackTrace();
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0|0.00|0|0.00|0|0";
 			reportData.add(errorReport);
 		} catch (Exception e) {
-			System.err.println("❌ Unexpected error in GetReservationChartReport: " + e.getMessage());
 			e.printStackTrace();
 			String errorReport = "ERROR|0|0.00|0|0.00|0|0|0.00|0|0.00|0|0";
 			reportData.add(errorReport);
 		}
 		
-		System.out.println("📤 Returning report data. List size: " + reportData.size());
 		return reportData;
 	}
 
@@ -1790,10 +1820,8 @@ public class mysqlConnection {
 				cancelStmt.executeUpdate();
 			}
 		} catch (SQLException e) {
-			System.err.println("[Cancellation Thread] Error cancelling expired reservations: " + e.getMessage());
 			e.printStackTrace();
 		} catch (Exception e) {
-			System.err.println("[Cancellation Thread] Unexpected error: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -1814,10 +1842,8 @@ public class mysqlConnection {
 				} catch (InterruptedException e) {
 					break;
 				} catch (SQLException e) {
-					System.err.println("[Cancellation Thread] Database connection error: " + e.getMessage());
 					e.printStackTrace();
 				} catch (Exception e) {
-					System.err.println("[Cancellation Thread] Unexpected error: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
@@ -1833,8 +1859,49 @@ public class mysqlConnection {
 	 * This method is called periodically by a background thread.
 	 * Priority: P_WAITING (high priority) first, then WAITING (low priority).
 	 */
+	/**
+	 * Remove waiting entries that are older than 15 minutes
+	 * Also removes SEATED entries that don't have a corresponding visit record
+	 */
+	private static void removeExpiredWaitingEntries() {
+		try {
+			// Remove WAITING entries older than 15 minutes
+			String deleteWaitingSql = 
+				"DELETE FROM waitingentry " +
+				"WHERE created_at <= DATE_SUB(NOW(), INTERVAL 15 MINUTE) " +
+				"AND status IN ('WAITING')";
+			
+			int waitingDeleted = 0;
+			try (PreparedStatement deleteStmt = conn.prepareStatement(deleteWaitingSql)) {
+				waitingDeleted = deleteStmt.executeUpdate();
+			}
+			
+			// Remove SEATED entries that don't have a corresponding visit record
+			String deleteSeatedSql = 
+				"DELETE w FROM waitingentry w " +
+				"LEFT JOIN visit v ON w.confirmation_code = v.confirmation_code " +
+				"WHERE w.status = 'SEATED' " +
+				"AND v.confirmation_code IS NULL";
+			
+			int seatedDeleted = 0;
+			try (PreparedStatement deleteSeatedStmt = conn.prepareStatement(deleteSeatedSql)) {
+				seatedDeleted = deleteSeatedStmt.executeUpdate();
+			}
+			
+			if (waitingDeleted > 0 || seatedDeleted > 0) {
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
 	private static void processWaitingList() {
 		try {
+			// First, remove expired waiting entries (older than 15 minutes)
+			removeExpiredWaitingEntries();
+			
 			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
 			
 			// First, get P_WAITING entries (high priority)
@@ -1862,7 +1929,6 @@ public class mysqlConnection {
 			// Process P_WAITING entries first
 			boolean pWaitingProcessed = false;
 			for (WaitingListEntry entry : pWaitingEntries) {
-				System.out.println("[DEBUG processWaitingList] Processing P_WAITING entry: confirmation_code=" + entry.confirmationCode + ", numberOfGuests=" + entry.numberOfGuests);
 				// Check if there's already a PENDING order for this confirmation_code (to avoid double-counting)
 				boolean hasPendingOrder = false;
 				try (PreparedStatement checkPendingStmt = conn.prepareStatement(
@@ -1874,7 +1940,6 @@ public class mysqlConnection {
 						}
 					}
 				} catch (SQLException e) {
-					System.err.println("[Waiting List Processor] Error checking for PENDING order: " + e.getMessage());
 				}
 				
 				boolean hasCapacity;
@@ -1998,7 +2063,6 @@ public class mysqlConnection {
 							}
 							break; // Process only one entry per cycle
 						} catch (Exception e) {
-							System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
 							e.printStackTrace();
 						}
 					}
@@ -2031,7 +2095,6 @@ public class mysqlConnection {
 				
 				// Process WAITING entries
 				for (WaitingListEntry entry : waitingEntries) {
-					System.out.println("[DEBUG processWaitingList] Processing WAITING entry: confirmation_code=" + entry.confirmationCode + ", numberOfGuests=" + entry.numberOfGuests);
 					// Check if there's already a PENDING order for this confirmation_code (to avoid double-counting)
 					boolean hasPendingOrder = false;
 					try (PreparedStatement checkPendingStmt = conn.prepareStatement(
@@ -2043,7 +2106,6 @@ public class mysqlConnection {
 							}
 						}
 					} catch (SQLException e) {
-						System.err.println("[Waiting List Processor] Error checking for PENDING order: " + e.getMessage());
 					}
 					
 					boolean hasCapacity;
@@ -2165,7 +2227,6 @@ public class mysqlConnection {
 								}
 								break; // Process only one entry per cycle
 							} catch (Exception e) {
-								System.err.println("[Waiting List Processor] Error processing waiting list entry: " + e.getMessage());
 								e.printStackTrace();
 							}
 						}
@@ -2173,10 +2234,8 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("[Waiting List Processor] Error processing waiting list: " + e.getMessage());
 			e.printStackTrace();
 		} catch (Exception e) {
-			System.err.println("[Waiting List Processor] Unexpected error: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -2208,10 +2267,8 @@ public class mysqlConnection {
 				} catch (InterruptedException e) {
 					break;
 				} catch (SQLException e) {
-					System.err.println("[Waiting List Processor] Database connection error: " + e.getMessage());
 					e.printStackTrace();
 				} catch (Exception e) {
-					System.err.println("[Waiting List Processor] Unexpected error: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
@@ -2269,10 +2326,8 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("[Reminder Notification Thread] Error sending reminder notifications: " + e.getMessage());
 			e.printStackTrace();
 		} catch (Exception e) {
-			System.err.println("[Reminder Notification Thread] Unexpected error: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -2293,10 +2348,8 @@ public class mysqlConnection {
 				} catch (InterruptedException e) {
 					break;
 				} catch (SQLException e) {
-					System.err.println("[Reminder Notification Thread] Database connection error: " + e.getMessage());
 					e.printStackTrace();
 				} catch (Exception e) {
-					System.err.println("[Reminder Notification Thread] Unexpected error: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
@@ -2360,10 +2413,8 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("[Long Sitting Check] Database error: " + e.getMessage());
 			e.printStackTrace();
 		} catch (Exception e) {
-			System.err.println("[Long Sitting Check] Unexpected error: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
@@ -2383,10 +2434,8 @@ public class mysqlConnection {
 				} catch (InterruptedException e) {
 					break;
 				} catch (SQLException e) {
-					System.err.println("[Long Sitting Check Thread] Database connection error: " + e.getMessage());
 					e.printStackTrace();
 				} catch (Exception e) {
-					System.err.println("[Long Sitting Check Thread] Unexpected error: " + e.getMessage());
 					e.printStackTrace();
 				}
 			}
@@ -2421,7 +2470,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("Error checking table capacity: " + e.getMessage());
 			return false;
 		}
 		
@@ -2440,7 +2488,6 @@ public class mysqlConnection {
 						orderTime = rs.getTimestamp("order_time_date");
 					} else {
 						// Order not found
-						System.err.println("Error updating number of guests: Order not found");
 						return false;
 					}
 				}
@@ -2462,7 +2509,6 @@ public class mysqlConnection {
 				return rowsAffected > 0; // Return true only if at least one row was updated
 			}
 		} catch (SQLException e) {
-			System.err.println("Error updating number of guests: " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
@@ -2554,7 +2600,6 @@ public class mysqlConnection {
 			// All reservations (including the updated one) can be assigned
 			return true;
 		} catch (SQLException e) {
-			System.err.println("Error during capacity check (excluding order by guests): " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
@@ -2584,7 +2629,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("Error fetching current order date: " + e.getMessage());
 			e.printStackTrace();
 			return "Error";
 		}
@@ -2618,7 +2662,6 @@ public class mysqlConnection {
 				return "Error";
 			}
 		} catch (SQLException e) {
-			System.err.println("Error updating order date: " + e.getMessage());
 			e.printStackTrace();
 			return "Error";
 		}
@@ -2758,7 +2801,6 @@ public class mysqlConnection {
 					
 					return "NoTableAvailable:AddedToWaitingList";
 				} catch (SQLException e) {
-					System.err.println("Error adding customer to waiting list during check-in: " + e.getMessage());
 					e.printStackTrace();
 					return "NoTableAvailable:Error";
 				}
@@ -2820,13 +2862,11 @@ public class mysqlConnection {
 			} catch (SQLException e) {
 				conn.rollback();
 				conn.setAutoCommit(true);
-				System.err.println("Error during check-in transaction: " + e.getMessage());
 				e.printStackTrace();
 				return "CheckInFailed:ServerError";
 			}
 
 		} catch (SQLException e) {
-			System.err.println("Error during check-in: " + e.getMessage());
 			e.printStackTrace();
 			return "CheckInFailed:ServerError";
 		}
@@ -3016,13 +3056,11 @@ public class mysqlConnection {
 						} catch (SQLException e) {
 							conn.rollback();
 							conn.setAutoCommit(true);
-							System.err.println("Error performing automatic check-in for subscriber waiting list entry: " + e.getMessage());
 							e.printStackTrace();
 							// Fall through to waiting list
 						}
 					}
 				} catch (SQLException e) {
-					System.err.println("Error processing subscriber waiting list entry with capacity: " + e.getMessage());
 					e.printStackTrace();
 					// If error occurs, fall through to waiting list
 				}
@@ -3049,10 +3087,8 @@ public class mysqlConnection {
 			}
 			
 		} catch (NumberFormatException e) {
-			System.err.println("Invalid subscriber ID for waiting list: " + subscriberIdStr);
 			return "Error";
 		} catch (SQLException e) {
-			System.err.println("Error inserting waiting entry for subscriber: " + e.getMessage());
 			e.printStackTrace();
 			return "Error";
 		}
@@ -3134,7 +3170,6 @@ public class mysqlConnection {
 			int rowsAffected = stmt.executeUpdate();
 			return rowsAffected > 0;
 		} catch (SQLException e) {
-			System.err.println("Error updating email/phone: " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
@@ -3193,9 +3228,7 @@ public class mysqlConnection {
 				}
 			}
 		} catch (NumberFormatException e) {
-			System.err.println("Invalid subscriber ID format: " + subscriberID);
 		} catch (SQLException e) {
-			System.err.println("Error getting subscriber history: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
@@ -3236,10 +3269,8 @@ public class mysqlConnection {
 				}
 			}
 		} catch (NumberFormatException e) {
-			System.err.println("Invalid subscriber ID format: " + subscriberID);
 			return "Error";
 		} catch (SQLException e) {
-			System.err.println("Error getting subscriber info: " + e.getMessage());
 			e.printStackTrace();
 			return "Error";
 		}
@@ -3282,10 +3313,8 @@ public class mysqlConnection {
 				return rowsAffected > 0;
 			}
 		} catch (NumberFormatException e) {
-			System.err.println("Invalid subscriber ID format: " + subscriberID);
 			return false;
 		} catch (SQLException e) {
-			System.err.println("Error updating subscriber info: " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
@@ -3337,7 +3366,6 @@ public class mysqlConnection {
 		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
 		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
 
-		System.out.println("[DEBUG checkCapacityAtTimeByGuests] Called with numberOfGuests=" + numberOfGuests + ", requestedDateTime=" + requestedDateTime);
 
 		try {
 			// Get all tables sorted by capacity (ascending) - we'll try to assign smallest suitable table first
@@ -3383,8 +3411,6 @@ public class mysqlConnection {
 				}
 			}
 			
-			System.out.println("[DEBUG checkCapacityAtTimeByGuests] Found " + overlappingReservations.size() + " overlapping reservations: " + overlappingConfirmations);
-			System.out.println("[DEBUG checkCapacityAtTimeByGuests] Overlapping reservation guests: " + overlappingReservations);
 			
 			// Simulate table assignment using greedy algorithm:
 			// Assign each reservation (including the new one) to the smallest table that can accommodate it
@@ -3393,7 +3419,6 @@ public class mysqlConnection {
 			reservationsToAssign.add(numberOfGuests); // Add the new reservation
 			reservationsToAssign.sort((a, b) -> Integer.compare(b, a)); // Sort descending
 			
-			System.out.println("[DEBUG checkCapacityAtTimeByGuests] After adding new reservation (" + numberOfGuests + " guests), total reservations to assign: " + reservationsToAssign);
 			
 			// Track which tables are already assigned
 			boolean[] tablesAssigned = new boolean[allTables.size()];
@@ -3418,78 +3443,11 @@ public class mysqlConnection {
 			// All reservations (including the new one) can be assigned
 			return true;
 		} catch (SQLException e) {
-			System.err.println("Error during capacity check by guests: " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
 	}
 	
-	/**
-	 * Calculate how many tables are available at a specific time
-	 * @param checkTime The time to check
-	 * @param reservationStartTimes List of reservation start times
-	 * @param reservationEndTimes List of reservation end times (start + 120 minutes = 2 hours)
-	 * @param visitStartTimes List of visit start times
-	 * @param visitEndTimes List of visit end times
-	 * @param totalTables Total number of tables in restaurant
-	 * @return Number of available tables at checkTime
-	 */
-	private static int calculateAvailableTablesAtTime(Timestamp checkTime, 
-			List<Timestamp> reservationStartTimes, List<Timestamp> reservationEndTimes,
-			List<Timestamp> visitStartTimes, List<Timestamp> visitEndTimes,
-			int totalTables) {
-		
-		int occupied = 0;
-		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
-		Timestamp checkTimeEnd = new Timestamp(checkTime.getTime() + twoHoursMillis);
-		
-		// Count reservations that occupy tables at checkTime
-		// A reservation at checkTime will occupy a table from checkTime to checkTimeEnd
-		// Another reservation overlaps if: its start < checkTimeEnd AND its end > checkTime
-		// BUT: if end == checkTimeEnd exactly, they don't overlap (one ends when the other starts - table can be reused)
-		int reservationOverlaps = 0;
-		for (int i = 0; i < reservationStartTimes.size(); i++) {
-			Timestamp start = reservationStartTimes.get(i);
-			Timestamp end = reservationEndTimes.get(i);
-			
-			// Reservation overlaps with checkTime if: start < checkTimeEnd AND end > checkTime
-			// Special case: If end == checkTime, they DON'T overlap (table freed exactly when new reservation starts)
-			// Special case: If start == checkTime and end == checkTimeEnd, they overlap (same time slot)
-			boolean overlaps = false;
-			
-			if (start.equals(checkTime) && end.equals(checkTimeEnd)) {
-				// Same time slot - overlaps
-				overlaps = true;
-			} else if (end.equals(checkTime)) {
-				// Reservation ends exactly when ours starts - doesn't overlap
-				overlaps = false;
-			} else if (start.before(checkTimeEnd) && end.after(checkTime)) {
-				// Standard overlap check
-				overlaps = true;
-			}
-			
-			if (overlaps) {
-				reservationOverlaps++;
-			}
-		}
-		occupied += reservationOverlaps;
-		
-		// Count visits that occupy tables at checkTime
-		for (int i = 0; i < visitStartTimes.size(); i++) {
-			Timestamp start = visitStartTimes.get(i);
-			Timestamp end = visitEndTimes.get(i);
-			
-			boolean overlaps = start.before(checkTimeEnd) && end.after(checkTime);
-			if (overlaps) {
-				occupied++;
-			}
-		}
-		
-		int available = totalTables - occupied;
-		
-		return available;
-	}
-
 	/**
 	 * Find alternative times for a reservation (before and after requested time)
 	 * Logic: Check capacity at each time using checkCapacityAtTimeByGuests to ensure
@@ -3564,7 +3522,6 @@ public class mysqlConnection {
 				return "ALT_TIMES:" + beforeStr + "|" + afterStr;
 			}
 		} catch (Exception e) {
-			System.err.println("Error finding alternative times: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return "";
@@ -3595,7 +3552,6 @@ public class mysqlConnection {
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("Error checking table capacity: " + e.getMessage());
 			return "Error: Could not check table availability.";
 		}
 		
@@ -3642,7 +3598,6 @@ public class mysqlConnection {
 	    				}
 	    			}
 	    		} catch (SQLException e) {
-	    			System.err.println("Error fetching subscriber info: " + e.getMessage());
 	    			e.printStackTrace();
 	    		}
 	    	}
@@ -3669,7 +3624,6 @@ public class mysqlConnection {
 	        return "SUCCESS";
 
 	    } catch (SQLException e) {
-	        System.err.println(" Error inserting reservation");
 	        e.printStackTrace();
 	        return "ERROR:" + e.getMessage();
 	    }
@@ -3706,7 +3660,6 @@ public class mysqlConnection {
 				}
 			} catch (SQLException e) {
 				// If check fails, try next attempt
-				System.err.println("Warning: Could not verify confirmation code uniqueness: " + e.getMessage());
 			}
 		}
 		
@@ -3718,197 +3671,6 @@ public class mysqlConnection {
 			timestampCode = "0" + timestampCode;
 		}
 		return "WT" + timestampCode; // Prefix "WT" for waiting list
-	}
-	
-	/**
-	 * Check if there's an available table right now for a given number of guests
-	 * @param numberOfGuests Number of guests
-	 * @return TableInfo object with tableID if available, null otherwise
-	 */
-	private static class TableInfo {
-		int tableID;
-		TableInfo(int tableID) {
-			this.tableID = tableID;
-		}
-	}
-	
-	/**
-	 * Check capacity based only on orders table (future reservations), not visits (active customers).
-	 * Used for waiting list - we only care about future reservations that will take up tables.
-	 * @param requestedDateTime The time to check capacity at
-	 * @return true if there's capacity based on orders only, false otherwise
-	 */
-	private static boolean checkCapacityAtTimeOrdersOnly(Timestamp requestedDateTime) {
-		long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
-		Timestamp reservationEnd = new Timestamp(requestedDateTime.getTime() + twoHoursMillis);
-
-		try {
-			// Count total tables
-			int totalTables = 0;
-			try (PreparedStatement countTablesStmt = conn.prepareStatement("SELECT COUNT(*) FROM tables")) {
-				try (ResultSet rs = countTablesStmt.executeQuery()) {
-					if (rs.next()) {
-						totalTables = rs.getInt(1);
-					}
-				}
-			}
-
-			// Count overlapping reservations ONLY (from orders table)
-			// A reservation overlaps if: start < reservationEnd AND end > requestedDateTime
-			// IMPORTANT: Only count future reservations (that haven't ended yet)
-			// A reservation is "future" if: DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) >= NOW()
-			String countReservationsSql =
-					"SELECT COUNT(*) " +
-					"FROM orders o " +
-					"WHERE o.order_time_date < ? " +
-					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
-					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) >= NOW() " +
-					"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid')";
-			int overlappingReservations = 0;
-			try (PreparedStatement countResStmt = conn.prepareStatement(countReservationsSql)) {
-				countResStmt.setTimestamp(1, reservationEnd);
-				countResStmt.setTimestamp(2, requestedDateTime);
-				try (ResultSet rs = countResStmt.executeQuery()) {
-					if (rs.next()) {
-						overlappingReservations = rs.getInt(1);
-					}
-				}
-			}
-
-			// Only count reservations, not visits
-			int tablesNeeded = overlappingReservations + 1; // +1 for the new customer
-			return totalTables > 0 && tablesNeeded <= totalTables;
-		} catch (SQLException e) {
-			System.err.println("Error during capacity check (orders only): " + e.getMessage());
-	        e.printStackTrace();
-	        return false;
-	    }
-	}
-	
-	/**
-	 * Check if restaurant has available capacity right now, considering future reservations.
-	 * Since each customer stays for 2 hours, checks if there's capacity for the entire 2-hour range
-	 * from now until now + 2 hours. This ensures there's room for people who made reservations in advance.
-	 * IMPORTANT: Only checks orders table (future reservations), NOT visits (active customers).
-	 * If restaurant has space for the entire 2-hour range based on reservations, returns an available table. Otherwise returns null.
-	 * @param numberOfGuests Number of guests
-	 * @return TableInfo if restaurant has space, null if restaurant is full
-	 */
-	private static TableInfo findAvailableTableNow(int numberOfGuests) {
-		try {
-			Timestamp currentTime = new Timestamp(System.currentTimeMillis());
-			
-			// Get the date part and round current time down to nearest 30-minute slot
-			// Example: 14:15 -> 14:00, 14:35 -> 14:30
-			java.util.Calendar cal = java.util.Calendar.getInstance();
-			cal.setTime(currentTime);
-			int minutes = cal.get(java.util.Calendar.MINUTE);
-			int roundedMinutes = (minutes / 30) * 30; // Round down to nearest 30 minutes
-			cal.set(java.util.Calendar.MINUTE, roundedMinutes);
-			cal.set(java.util.Calendar.SECOND, 0);
-			cal.set(java.util.Calendar.MILLISECOND, 0);
-			
-			// Check capacity at multiple time points in the next 2 hours
-			// Since each reservation lasts 2 hours, we need to check at intervals to ensure
-			// there's capacity throughout the entire 2-hour range
-			// Example: if current time is 14:15 (rounded to 14:00), check: 14:00, 14:30, 15:00, 15:30, 16:00
-			// This ensures there's room for people who made reservations in advance
-			// IMPORTANT: Only check orders table (future reservations), NOT visits (active customers)
-			boolean hasCapacityForAllTimePoints = true;
-			
-			for (int offsetMinutes = 0; offsetMinutes <= 120; offsetMinutes += 30) {
-				java.util.Calendar checkCal = (java.util.Calendar) cal.clone();
-				checkCal.add(java.util.Calendar.MINUTE, offsetMinutes);
-				Timestamp checkTime = new Timestamp(checkCal.getTimeInMillis());
-				
-				// Check capacity at this time point based ONLY on orders (future reservations)
-				boolean hasCapacity = checkCapacityAtTimeOrdersOnly(checkTime);
-				
-				if (!hasCapacity) {
-					// Restaurant doesn't have capacity at this time point for the 2-hour range
-					hasCapacityForAllTimePoints = false;
-					break;
-				}
-			}
-			
-			// If restaurant doesn't have capacity at any of the checked time points, return null (customer must wait)
-			if (!hasCapacityForAllTimePoints) {
-				return null;
-			}
-			
-			// Restaurant has capacity at all checked time points - find an available table right now
-			String tableQuery =
-				"SELECT tableID, capacity " +
-				"FROM tables " +
-				"WHERE tableStatus = 'AVAILABLE' AND capacity >= ? " +
-				"ORDER BY capacity ASC " +
-				"LIMIT 1";
-			
-			try (PreparedStatement tableStmt = conn.prepareStatement(tableQuery)) {
-				tableStmt.setInt(1, numberOfGuests);
-				try (ResultSet rs = tableStmt.executeQuery()) {
-					if (rs.next()) {
-						return new TableInfo(rs.getInt("tableID"));
-					}
-				}
-			}
-			
-		} catch (Exception e) {
-			System.err.println("Error finding available table: " + e.getMessage());
-			e.printStackTrace();
-		}
-		return null;
-	}
-	
-	/**
-	 * Perform immediate check-in (when table is available right now)
-	 * Creates visit row and marks table as OCCUPIED
-	 * @param tableInfo Table information
-	 * @param numberOfGuests Number of guests
-	 * @return Table ID string
-	 */
-	private static String performImmediateCheckIn(TableInfo tableInfo, int numberOfGuests) throws SQLException {
-		return performImmediateCheckIn(tableInfo, numberOfGuests, null);
-	}
-	
-	private static String performImmediateCheckIn(TableInfo tableInfo, int numberOfGuests, Integer subscriberId) throws SQLException {
-		conn.setAutoCommit(false);
-		try {
-			// Mark table as OCCUPIED (no confirmationCode for immediate walk-in)
-			String updateTableSql = "UPDATE tables SET tableStatus = ?, confirmationCode = NULL WHERE tableID = ?";
-			try (PreparedStatement updateTable = conn.prepareStatement(updateTableSql)) {
-				updateTable.setString(1, "OCCUPIED");
-				updateTable.setInt(2, tableInfo.tableID);
-				updateTable.executeUpdate();
-			}
-			
-			// Insert visit row (no order_number, no confirmation_code - immediate walk-in)
-			// Include subscriber_id if this is a subscriber check-in
-			String insertVisitSql =
-				"INSERT INTO visit (order_number, confirmation_code, tableID, startTime, subId) " +
-				"VALUES (NULL, NULL, ?, NOW(), ?)";
-			try (PreparedStatement insertVisit = conn.prepareStatement(insertVisitSql)) {
-				insertVisit.setInt(1, tableInfo.tableID);
-				// Set subscriber_id if provided
-				if (subscriberId != null) {
-					insertVisit.setInt(2, subscriberId);
-				} else {
-					insertVisit.setNull(2, java.sql.Types.INTEGER);
-				}
-				insertVisit.executeUpdate();
-			}
-			
-			conn.commit();
-			conn.setAutoCommit(true);
-			
-			System.out.println("Immediate check-in: Table " + tableInfo.tableID + " assigned to " + numberOfGuests + " guests");
-			return String.valueOf(tableInfo.tableID);
-			
-		} catch (SQLException e) {
-			conn.rollback();
-			conn.setAutoCommit(true);
-			throw e;
-		}
 	}
 	
 	/**
@@ -4043,12 +3805,9 @@ public class mysqlConnection {
 	        }
 	        
 	    } catch (SQLException e) {
-	        System.err.println("Error inserting waiting entry: " + e.getMessage());
-	        System.err.println("SQL State: " + e.getSQLState());
 	        e.printStackTrace();
 	        return "Error";
 	    } catch (Exception e) {
-	        System.err.println("General error inserting waiting entry: " + e.getMessage());
 	        e.printStackTrace();
 	        return "Error";
 	    }
@@ -4079,7 +3838,6 @@ public class mysqlConnection {
 			}
 			
 		} catch (SQLException e) {
-			System.err.println("Error exiting waiting list: " + e.getMessage());
 			e.printStackTrace();
 			return "WaitingListExitFailed: " + e.getMessage();
 		}
@@ -4150,7 +3908,6 @@ public class mysqlConnection {
 	            }
 	        }
 	    } catch (SQLException e) {
-	        System.err.println("Error validating subscriber: " + e.getMessage());
 	        e.printStackTrace();
 	        return false;
 	    }
@@ -4232,13 +3989,11 @@ public class mysqlConnection {
 	        } catch (SQLException e) {
 	            conn.rollback();
 	            conn.setAutoCommit(true);
-	            System.err.println("Error processing payment: " + e.getMessage());
 	            e.printStackTrace();
 	            return "PaymentFailed: " + e.getMessage();
 	        }
 	        
 	    } catch (SQLException e) {
-	        System.err.println("Error processing payment: " + e.getMessage());
 	        e.printStackTrace();
 	        return "PaymentFailed: " + e.getMessage();
 	    }
@@ -4255,7 +4010,6 @@ public class mysqlConnection {
 		try {
 			// Validate input - prevent accidental mass cancellation
 			if (confirmationCode == null || confirmationCode.trim().isEmpty()) {
-				System.err.println("Error: Cannot cancel reservation - confirmation code is null or empty");
 				return "Error: Confirmation code is required";
 			}
 			
@@ -4294,12 +4048,10 @@ public class mysqlConnection {
 					System.out.println("Cancelled reservation: " + confirmationCode);
 					return "Cancelled";
 				} else {
-					System.err.println("Warning: No rows affected when cancelling reservation: " + confirmationCode);
 					return "Error: Failed to cancel reservation - reservation may have already been cancelled or paid";
 				}
 			}
 		} catch (SQLException e) {
-			System.err.println("Error cancelling reservation: " + e.getMessage());
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
 		}
@@ -4358,11 +4110,9 @@ public class mysqlConnection {
 			
 			return null;
 		} catch (SQLException e) {
-			System.err.println("Error getting opening hours: " + e.getMessage());
 			e.printStackTrace();
 			return null;
 		} catch (Exception e) {
-			System.err.println("Error parsing date in getOpeningHours: " + e.getMessage());
 			e.printStackTrace();
 			return null;
 		}
@@ -4425,59 +4175,49 @@ public class mysqlConnection {
 	 */
 	private static boolean canMakeReservationAtTime(Timestamp time) {
 		try {
+			// Check if the time is within opening hours
+			if (!isWithinOpeningHours(time)) {
+				return false;
+			}
+			
+			// Check if time + 2 hours is still within opening hours
+			long twoHoursMillis = 120L * 60L * 1000L; // 2 hours = 120 minutes
+			Timestamp reservationEnd = new Timestamp(time.getTime() + twoHoursMillis);
+			if (!isWithinOpeningHours(reservationEnd)) {
+				return false;
+			}
+			
+			// Additional check: ensure reservation doesn't start too late
+			// Latest reservation time should be closingTime - 2 hours
 			java.time.LocalDate date = time.toLocalDateTime().toLocalDate();
 			String dateStr = date.toString();
-			
 			String openingHoursStr = getOpeningHours(dateStr);
 			
-			java.time.LocalTime openingTime;
 			java.time.LocalTime closingTime;
-			
 			if (openingHoursStr != null && !openingHoursStr.isEmpty()) {
 				String[] parts = openingHoursStr.split("-");
 				if (parts.length == 2) {
-					openingTime = java.time.LocalTime.parse(parts[0]);
 					closingTime = java.time.LocalTime.parse(parts[1]);
 				} else {
-					openingTime = java.time.LocalTime.of(12, 0);
 					closingTime = java.time.LocalTime.of(0, 0);
 				}
 			} else {
-				openingTime = java.time.LocalTime.of(12, 0);
 				closingTime = java.time.LocalTime.of(0, 0);
 			}
 			
 			java.time.LocalTime timeToCheck = time.toLocalDateTime().toLocalTime();
-			
 			java.time.LocalTime latestReservationTime;
 			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
 				latestReservationTime = java.time.LocalTime.of(22, 0);
 			} else {
 				latestReservationTime = closingTime.minusHours(2);
 			}
-			
-			boolean isWithinOpeningHours = false;
-			if (closingTime.equals(java.time.LocalTime.of(0, 0))) {
-				isWithinOpeningHours = !timeToCheck.isBefore(openingTime);
-			} else {
-				isWithinOpeningHours = !timeToCheck.isBefore(openingTime) && !timeToCheck.isAfter(closingTime);
-			}
-			
-			return isWithinOpeningHours && !timeToCheck.isAfter(latestReservationTime);
+			return !timeToCheck.isAfter(latestReservationTime);
 		} catch (Exception e) {
-			System.err.println("Error checking if reservation can be made: " + e.getMessage());
 			e.printStackTrace();
 			return false;
 		}
 	}
-
-
-
-
-
-
-
-	
 	/**
 	 * Get reservation chart report for the previous month (default).
 	 * @return List with single string containing all statistics separated by |
@@ -4485,5 +4225,4 @@ public class mysqlConnection {
 	public static List<String> GetReservationChartReport() {
 		return GetReservationChartReport(null);
 	}
-
 }

@@ -46,13 +46,11 @@
             <!-- Separator -->
             <Label text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━" style="-fx-text-fill: rgba(255,255,255,0.3); -fx-font-size: 12px; -fx-padding: 4px 0;" />
             
-            <!-- Guest and Subscriber Options -->
+            <!-- Customer Options -->
             <VBox spacing="5" alignment="CENTER">
                 <Label text="Customer Options" style="-fx-text-fill: #60a5fa; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 0 0 2 0;" />
-                <HBox spacing="10" alignment="CENTER">
-                    <Button fx:id="guestOptionsButton" onAction="#handleGuestOptions" text="Guest" prefWidth="135" prefHeight="35" style="-fx-font-size: 14px;" />
-                    <Button fx:id="subscriberOptionsButton" onAction="#handleSubscriberOptions" text="Subscriber" prefWidth="135" prefHeight="35" style="-fx-font-size: 14px;" />
-                </HBox>
+                <Button fx:id="guestOptionsButton" onAction="#handleGuestOptions" text="Guest" prefWidth="280" prefHeight="35" />
+                <Button fx:id="subscriberActionsButton" onAction="#handleSubscriberActions" text="Subscriber Actions" prefWidth="280" prefHeight="35" />
             </VBox>
         </VBox>
     </center>

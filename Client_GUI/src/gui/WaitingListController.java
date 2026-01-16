@@ -6,22 +6,22 @@ import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import entities.WaitingEntry;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.stage.Stage;
 
-
+/**
+ * Controller for the Waiting List screen.
+ * Allows users to join the waiting list when the restaurant is full.
+ * For subscribers, automatically uses their stored information (phone, email).
+ */
 public class WaitingListController {
 
     @FXML
@@ -67,6 +67,11 @@ public class WaitingListController {
     	}
     }
     
+    /**
+     * Handles the Submit button click.
+     * Validates input and sends waiting list entry request to the server.
+     * For guests, requires phone and email input. For subscribers, uses stored information.
+     */
     @FXML
     private void handleSubmit() {
         String guestsText = guestsField.getText();
@@ -140,7 +145,7 @@ public class WaitingListController {
 	                    // Restaurant has available space - show table number
 	                    String tableLocation = response.substring("TABLE_AVAILABLE:".length());
 	                    lblStatus.setText("");
-	                    showInfo("Great news! A table is available right now.\n\nYour table: " + tableLocation + "\n\nYou can proceed to your table.");
+	                    AlertHelper.showInfo("Table Available", "Great news! A table is available right now.\n\nYour table: " + tableLocation + "\n\nYou can proceed to your table.");
 	                    guestsField.clear();
 	                    phoneField.clear();
 	                    emailField.clear();
@@ -148,7 +153,7 @@ public class WaitingListController {
                     // Restaurant is full - show confirmation code
                     String confirmationCode = response.substring("WAITING_LIST:".length());
                     lblStatus.setText("");
-                    showInfo("The restaurant is currently full.\n\nYou have been added to the waiting list.\n\nYour confirmation code: " + confirmationCode + "\n\nYou will receive an SMS when a table becomes available.\n\nPlease use this code when a table becomes available.");
+                    AlertHelper.showInfo("Waiting List", "The restaurant is currently full.\n\nYou have been added to the waiting list.\n\nYour confirmation code: " + confirmationCode + "\n\nYou will receive an SMS when a table becomes available.\n\nPlease use this code when a table becomes available.");
                     guestsField.clear();
                     phoneField.clear();
                     emailField.clear();
@@ -194,13 +199,13 @@ public class WaitingListController {
         				// Restaurant has available space - show table number
         				String tableLocation = response.substring("TABLE_AVAILABLE:".length());
         				lblStatus.setText("");
-        				showInfo("Great news! A table is available right now.\n\nYour table: " + tableLocation + "\n\nYou can proceed to your table.");
+        				AlertHelper.showInfo("Table Available", "Great news! A table is available right now.\n\nYour table: " + tableLocation + "\n\nYou can proceed to your table.");
         				guestsField.clear();
         			} else if (response.startsWith("WAITING_LIST:")) {
         				// Restaurant is full - show confirmation code
         				String confirmationCode = response.substring("WAITING_LIST:".length());
         				lblStatus.setText("");
-        				showInfo("The restaurant is currently full.\n\nYou have been added to the waiting list.\n\nYour confirmation code: " + confirmationCode + "\n\nYou will receive an SMS when a table becomes available.\n\nPlease use this code when a table becomes available.");
+        				AlertHelper.showInfo("Waiting List", "The restaurant is currently full.\n\nYou have been added to the waiting list.\n\nYour confirmation code: " + confirmationCode + "\n\nYou will receive an SMS when a table becomes available.\n\nPlease use this code when a table becomes available.");
         				guestsField.clear();
         			} else if (response.isEmpty()) {
         				lblStatus.setText("No response from server. Please try again.");
@@ -212,58 +217,18 @@ public class WaitingListController {
         }
     }
 
-
+    /**
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
+     */
     public void Back(ActionEvent event) throws IOException {
-    	// Navigate back to appropriate menu (Guest or Subscriber)
-    	boolean isGuest = UserSessionHelper.isGuest();
-    	String fxml = isGuest ? "/gui/GuestMenu.fxml" : "/gui/SubMenu.fxml";
-    	String css = isGuest ? "/gui/GuestMenu.css" : "/gui/SubMenu.css";
-    	String title = isGuest ? "Guest Menu" : "Subscriber Menu";
-    	
-        FXMLLoader menuLoader = new FXMLLoader(getClass().getResource(fxml));
-        Parent menuRoot = menuLoader.load();
-        
-        // If subscriber, pass subscriberID to SubMenuController
-        if (!isGuest) {
-        	try {
-        		Object controller = menuLoader.getController();
-        		if (controller instanceof SubMenuController) {
-        			((SubMenuController) controller).setSubscriberID(UserSessionHelper.getSubscriberID());
-        		}
-        	} catch (Exception e) {
-        		e.printStackTrace();
-        	}
-        }
-        
-        Stage menuStage = new Stage();
-        Scene menuScene = new Scene(menuRoot);
-        menuScene.getStylesheets().add(getClass().getResource(css).toExternalForm());
-        menuStage.setScene(menuScene);
-        menuStage.setTitle(title);
-        
-        menuStage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        menuStage.show();
-        ((Node) event.getSource()).getScene().getWindow().hide();
+        // Use centralized navigation that handles context restoration
+        UserSessionHelper.navigateBackToMenu((Node) event.getSource());
     }
 
-    private void showInfo(String msg) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Success");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
+    // Alert methods removed - now using AlertHelper static methods
 }
 

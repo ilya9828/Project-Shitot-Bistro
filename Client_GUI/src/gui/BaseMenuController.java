@@ -4,12 +4,12 @@ import java.io.IOException;
 import java.util.HashMap;
 
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.stage.Stage;
 
@@ -79,7 +79,7 @@ public abstract class BaseMenuController {
 
     /**
      * Handles the "Exit Waiting List" button click.
-     * FIX: Navigates to ExitWaitingList screen
+     * Navigates to the ExitWaitingList screen.
      */
     @FXML
     protected void handleExitWaitingList() {
@@ -183,28 +183,32 @@ public abstract class BaseMenuController {
 
     /**
      * Shows an info alert dialog.
+     * Delegates to AlertHelper for consistency.
      * 
      * @param message The info message to display
      */
     protected void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Information");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        AlertHelper.showInfo("Information", message);
     }
 
     /**
      * Shows an error alert dialog.
+     * Delegates to AlertHelper for consistency.
      * 
      * @param message The error message to display
      */
     protected void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        AlertHelper.showError("Error", message);
+    }
+    
+    /**
+     * Shows a success alert dialog.
+     * Delegates to AlertHelper for consistency.
+     * 
+     * @param message The success message to display
+     */
+    protected void showSuccess(String message) {
+        AlertHelper.showSuccess("Success", message);
     }
 }
 

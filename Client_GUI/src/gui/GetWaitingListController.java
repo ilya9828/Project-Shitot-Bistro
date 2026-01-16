@@ -81,9 +81,11 @@ public class GetWaitingListController {
     }
 
     /**
-     * This method is for the back button closing the current GUI and uploading the menu GUI.
-     * @param event - click on the back button.
-     * @throws IOException
+     * Handles the Back button click.
+     * Closes the current screen and navigates back to the appropriate menu.
+     * 
+     * @param event The click event on the back button
+     * @throws IOException If navigation fails
      */
     @FXML
     public void Back(ActionEvent event) throws IOException {
@@ -91,8 +93,9 @@ public class GetWaitingListController {
     }
 
     /**
-     * This method is getting list of waiting entries and uploading it to the table view
-     * @param waitingEntries - list of waiting entries as strings (format: "waitingID, number_of_guests, phone, date, status, created_at")
+     * Loads a list of waiting entries and displays them in the table view.
+     * 
+     * @param waitingEntries List of waiting entries as strings (format: "waitingID, number_of_guests, phone, date, status, created_at")
      */
     public void loadWaitingList(List<String> waitingEntries) {
         // Convert the list to an observable list and set it to the table

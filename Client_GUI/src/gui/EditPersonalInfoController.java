@@ -5,18 +5,14 @@ import java.util.HashMap;
 
 import client.ChatClient;
 import client.ClientUI;
+import common.AlertHelper;
 import common.UserSessionHelper;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.stage.Stage;
 
 /**
  * Controller for the Edit Personal Information screen.
@@ -123,24 +119,24 @@ public class EditPersonalInfoController {
 
         // Validation
         if (name.isEmpty()) {
-            showError("Name cannot be empty.");
+            AlertHelper.showError("Error", "Name cannot be empty.");
             return;
         }
 
         if (email.isEmpty() && phone.isEmpty()) {
-            showError("Please provide at least email or phone number.");
+            AlertHelper.showError("Error", "Please provide at least email or phone number.");
             return;
         }
 
         // Basic email validation
         if (!email.isEmpty() && !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
-            showError("Please enter a valid email address.");
+            AlertHelper.showError("Error", "Please enter a valid email address.");
             return;
         }
 
         // Basic phone validation (8-15 digits)
         if (!phone.isEmpty() && !phone.matches("\\d{8,15}")) {
-            showError("Please enter a valid phone number (8-15 digits).");
+            AlertHelper.showError("Error", "Please enter a valid phone number (8-15 digits).");
             return;
         }
 
@@ -187,59 +183,14 @@ public class EditPersonalInfoController {
 
     /**
      * Handles the Back button click.
-     * Returns to the Subscriber Menu.
+     * Returns to the appropriate menu (Subscriber Menu, or Staff/Manager Menu if accessed from there).
      */
     @FXML
     private void Back(ActionEvent event) throws IOException {
-        String menuFile = "/gui/SubMenu.fxml";
-        String cssFile = "/gui/SubMenu.css";
-        String title = "Subscriber Menu";
-        
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(menuFile));
-        Parent root = loader.load();
-        
-        // Set the subscriber ID
-        try {
-            Object controller = loader.getController();
-            if (controller instanceof SubMenuController) {
-                ((SubMenuController) controller).setSubscriberID(subscriberID);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        
-        Stage stage = new Stage();
-        Scene scene = new Scene(root);
-        scene.getStylesheets().add(getClass().getResource(cssFile).toExternalForm());
-        stage.setScene(scene);
-        stage.setTitle(title);
-        
-        stage.setOnCloseRequest(closeEvent -> {
-            try {
-                if (ClientUI.chat != null) {
-                    HashMap<String, String> disconnectMsg = new HashMap<>();
-                    disconnectMsg.put("Disconnect", "");
-                    ClientUI.chat.accept(disconnectMsg);
-                    Thread.sleep(200);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-        
-        stage.show();
-        ((javafx.scene.Node) event.getSource()).getScene().getWindow().hide();
+        // Use centralized navigation that handles context restoration
+        UserSessionHelper.navigateBackToMenu((javafx.scene.Node) event.getSource());
     }
 
-    /**
-     * Shows an error alert dialog.
-     */
-    private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
+    // Alert methods removed - now using AlertHelper static methods
 }
 

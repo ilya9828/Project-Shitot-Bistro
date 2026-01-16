@@ -1,8 +1,11 @@
 package gui;
 
+import java.io.IOException;
+
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import common.UserSessionHelper;
 
 /**
  * Controller for the Subscriber Menu screen.
@@ -32,6 +35,15 @@ public class SubMenuController extends BaseMenuController {
         if (subscriberInfoLabel != null) {
             subscriberInfoLabel.setText("Logged in as Subscriber ID: " + subid);
         }
+        
+        // Update button text based on whether we came from Staff/Manager
+        if (backToLoginButton != null) {
+            if (UserSessionHelper.hasOriginalContext()) {
+                backToLoginButton.setText("Back");
+            } else {
+                backToLoginButton.setText("Back to Login");
+            }
+        }
     }
 
     /**
@@ -41,6 +53,15 @@ public class SubMenuController extends BaseMenuController {
     public void initialize() {
         if (subscriberID != null && subscriberInfoLabel != null) {
             subscriberInfoLabel.setText("Logged in as Subscriber ID: " + subscriberID);
+        }
+        
+        // Update button text based on whether we came from Staff/Manager
+        if (backToLoginButton != null) {
+            if (UserSessionHelper.hasOriginalContext()) {
+                backToLoginButton.setText("Back");
+            } else {
+                backToLoginButton.setText("Back to Login");
+            }
         }
     }
 
@@ -70,6 +91,31 @@ public class SubMenuController extends BaseMenuController {
     private void handleLogOut() {
         // Reuse the logic from base class
         handleBackToLogin();
+    }
+    
+    /**
+     * Overrides handleBackToLogin to check if we came from Staff/Manager menu.
+     * If so, navigate back to that menu (with fromMenu=true to restore context).
+     * Otherwise, go to login.
+     */
+    @Override
+    @FXML
+    protected void handleBackToLogin() {
+        try {
+            // Check if we came from Staff/Manager menu
+            if (UserSessionHelper.hasOriginalContext()) {
+                // Navigate back to Staff/Manager menu (fromMenu=true restores context)
+                UserSessionHelper.navigateBackToMenu(backToLoginButton, true);
+            } else {
+                // Normal flow: go to login
+                super.handleBackToLogin();
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to navigate back: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback to normal login
+            super.handleBackToLogin();
+        }
     }
 }
 
