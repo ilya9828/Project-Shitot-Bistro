@@ -140,6 +140,7 @@ public class EchoServer extends AbstractServer {
 		case LostCode:
 			String Code = mysqlConnection.LostCode(infoFromUser.get(menuChoiceString));
 			this.sendToAllClients(Code);
+			System.out.println("Code: " + Code);
 			flag++;
 			break;
 		case ExitWaitingList:
@@ -488,9 +489,7 @@ public class EchoServer extends AbstractServer {
 		case ValidateUserID:
 			try {
 				String userId = infoFromUser.get(menuChoiceString);
-				System.out.println("Validating user ID: " + userId);
 				String userType = mysqlConnection.validateUserID(userId);
-				System.out.println("User type: " + userType);
 				this.sendToAllClients(userType);
 			} catch (Exception e) {
 				System.err.println("Exception in ValidateUserID case: " + e.getMessage());

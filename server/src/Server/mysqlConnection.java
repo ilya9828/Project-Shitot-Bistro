@@ -2184,7 +2184,6 @@ public class mysqlConnection {
 									try (PreparedStatement updateWaiting = conn.prepareStatement(updateWaitingSql)) {
 										updateWaiting.setString(1, entry.confirmationCode);
 										updateWaiting.executeUpdate();
-										System.out.println("[Waiting List Processor] Updated waitingentry status to SEATED for confirmation_code: " + entry.confirmationCode);
 									}
 								} catch (SQLException e) {
 									System.err.println("[Waiting List Processor] Error updating waitingentry status: " + e.getMessage());
@@ -2290,8 +2289,9 @@ public class mysqlConnection {
 				"FROM orders " +
 				"WHERE order_time_date >= DATE_ADD(NOW(), INTERVAL 2 HOUR) " +
 				"AND order_time_date <= DATE_ADD(DATE_ADD(NOW(), INTERVAL 2 HOUR), INTERVAL 5 MINUTE) " +
-				"AND status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid', 'CheckedIN') " +
-				"AND order_time_date > NOW()";
+				"AND status IN ('PENDING') " +
+				"AND order_time_date > NOW() " +
+				"AND reminder_sent = 0";
 			
 			try (PreparedStatement reminderStmt = conn.prepareStatement(reminderSql)) {
 				try (ResultSet rs = reminderStmt.executeQuery()) {
@@ -2322,6 +2322,13 @@ public class mysqlConnection {
 							System.out.println("[Reminder Notification] QR CODE sent to customer: " + customerInfo + 
 							                   " - Reminder: Your reservation is in 2 hours at " + orderTime);
 						}
+						
+						// Mark reminder as sent to prevent duplicate notifications
+						String updateReminderSql = "UPDATE orders SET reminder_sent = 1 WHERE confirmation_code = ?";
+						try (PreparedStatement updateStmt = conn.prepareStatement(updateReminderSql)) {
+							updateStmt.setString(1, confirmationCode);
+							updateStmt.executeUpdate();
+						}
 					}
 				}
 			}
@@ -2334,14 +2341,14 @@ public class mysqlConnection {
 	
 	/**
 	 * Start a background thread that periodically sends reminder notifications.
-	 * The thread runs every 30 seconds to check for reservations that need reminders
+	 * The thread runs every 50 seconds to check for reservations that need reminders
 	 * (2 hours before reservation time).
 	 */
 	private static void startReminderNotificationThread() {
 		Thread reminderThread = new Thread(() -> {
 			while (true) {
 				try {
-					Thread.sleep(30000);
+					Thread.sleep(50000);
 					if (conn != null && !conn.isClosed()) {
 						sendReminderNotifications();
 					}
@@ -2362,6 +2369,7 @@ public class mysqlConnection {
 	
 	/**
 	 * Check for customers who have been sitting at a table for 2 hours or more.
+	 * Sends them a bill automatically with detailed invoice information.
 	 * This method is called periodically by a background thread.
 	 */
 	private static void checkLongSittingCustomers() {
@@ -2370,47 +2378,72 @@ public class mysqlConnection {
 				return;
 			}
 			
-			// Query visit table joined with tables to find customers sitting for 2+ hours
-			String sql = "SELECT v.confirmation_code, v.tableID, v.startTime, o.name AS customerName " +
+			// Query visit table to find customers sitting for exactly 2 hours (within 5 minute window)
+			// This ensures bill is sent only once per customer (within the 5 minute window)
+			String sql = "SELECT v.confirmation_code, v.tableID, v.startTime, o.name AS customerName, " +
+			             "o.email, o.phone, o.number_of_guests " +
 			             "FROM visit v " +
 			             "INNER JOIN tables t ON v.confirmation_code = t.confirmationCode " +
 			             "LEFT JOIN orders o ON v.confirmation_code = o.confirmation_code " +
 			             "WHERE v.endTime IS NULL " +
+			             "AND v.startTime >= DATE_SUB(NOW(), INTERVAL 2 HOUR + INTERVAL 5 MINUTE) " +
 			             "AND v.startTime <= DATE_SUB(NOW(), INTERVAL 2 HOUR) " +
 			             "ORDER BY v.startTime ASC";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql);
 			     ResultSet rs = pstmt.executeQuery()) {
 				
-				boolean foundAny = false;
 				while (rs.next()) {
-					foundAny = true;
 					String confirmationCode = rs.getString("confirmation_code");
 					int tableID = rs.getInt("tableID");
-					java.sql.Timestamp startTime = rs.getTimestamp("startTime");
 					String customerName = rs.getString("customerName");
+					String email = rs.getString("email");
+					String phone = rs.getString("phone");
+					int numberOfGuests = rs.getInt("number_of_guests");
 					
 					if (customerName == null || customerName.trim().isEmpty()) {
 						customerName = "Unknown";
 					}
 					
-					// Calculate how long they've been sitting
-					long startMillis = startTime.getTime();
-					long currentMillis = System.currentTimeMillis();
-					long sittingMinutes = (currentMillis - startMillis) / (1000 * 60);
-					long sittingHours = sittingMinutes / 60;
-					long remainingMinutes = sittingMinutes % 60;
+					// Bill amount
+					double billAmount = 250.0;
 					
-					System.out.println("[Long Sitting Check] Customer " + customerName + 
-					                   " (Confirmation: " + confirmationCode + 
-					                   ", Table: " + tableID + 
-					                   ") has been sitting for " + sittingHours + " hours and " + remainingMinutes + " minutes");
+					// Prepare detailed bill message
+					String billDetails = String.format(
+						"Restaurant Bill\n" +
+						"===============\n" +
+						"Confirmation Code: %s\n" +
+						"Table Number: %d\n" +
+						"Number of Guests: %d\n" +
+						"\nBill Details:\n" +
+						"-------------\n" +
+						"Total Amount: %.2f NIS\n" +
+						"\nThank you for your visit!",
+						confirmationCode, tableID, numberOfGuests, billAmount
+					);
+					
+					// Send SMS if phone available
+					if (phone != null && !phone.trim().isEmpty()) {
+						System.out.println("[Long Sitting Check] Bill SMS sent to customer: " + customerName + 
+						                   " (Phone: " + phone + 
+						                   ", Confirmation: " + confirmationCode + 
+						                   ", Table: " + tableID + 
+						                   ", Amount: " + billAmount + " NIS)");
+						System.out.println("[Long Sitting Check] SMS Bill Details:\n" + billDetails);
+					}
+					
+					// Send Email if email available
+					if (email != null && !email.trim().isEmpty()) {
+						System.out.println("[Long Sitting Check] Bill Email sent to customer: " + customerName + 
+						                   " (Email: " + email + 
+						                   ", Confirmation: " + confirmationCode + 
+						                   ", Table: " + tableID + 
+						                   ", Amount: " + billAmount + " NIS)");
+						System.out.println("[Long Sitting Check] Email Bill Details:\n" + billDetails);
+					}
 				}
 				
-				if (!foundAny) {
-					// Optional: print that no long-sitting customers were found (comment out if too verbose)
-					// System.out.println("[Long Sitting Check] No customers sitting for 2+ hours");
-				}
+				
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
