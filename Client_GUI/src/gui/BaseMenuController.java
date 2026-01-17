@@ -14,8 +14,12 @@ import javafx.scene.control.Button;
 import javafx.stage.Stage;
 
 /**
- * Base controller for all menu screens (Guest, Staff, Manager, Subscriber).
- * Contains common functionality for navigation and window management.
+ * Abstract base controller class for all menu screens (Guest, Staff, Manager, Subscriber).
+ * Provides common functionality for navigation, window management, and UI interactions.
+ * All menu controllers should extend this class to inherit common menu navigation methods.
+ * 
+ * @author Project Team
+ * @version 1.0
  */
 public abstract class BaseMenuController {
     

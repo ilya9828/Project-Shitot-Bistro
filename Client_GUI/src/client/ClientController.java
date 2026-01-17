@@ -6,19 +6,27 @@ package client;
 import java.io.*;
 import common.ChatIF;
 
-/**This class is the controller of connection to the server
- * and getting the information that we wants to send to the server.
+/**
+ * Controller class managing the connection between the client UI and the server.
+ * Handles message routing and maintains the ChatClient instance for server communication.
+ * Implements ChatIF interface to support message display functionality.
+ * 
+ * @author Project Team
+ * @version 1.0
  */
 public class ClientController implements ChatIF {
+	/** The ChatClient instance handling the actual server connection */
 	ChatClient client;
 
 	// Constructors ****************************************************
 
 	/**
-	 * Constructs an instance of the ClientConsole UI.
+	 * Constructs an instance of the ClientController.
+	 * Initializes a new ChatClient connection to the specified host and port.
+	 * Terminates the application if the connection setup fails.
 	 *
-	 * @param host The host to connect to.
-	 * @param port The port to connect on.
+	 * @param host The host address to connect to
+	 * @param port The port number to connect on
 	 */
 	public ClientController(String host, int port) {
 		try {
@@ -32,17 +40,21 @@ public class ClientController implements ChatIF {
 	// Instance methods ************************************************
 
 	/**
-	 * This method waits for input from the client. Once it is received, it sends it to the client's message handler.
+	 * Accepts an object from the client UI and forwards it to the ChatClient
+	 * for transmission to the server.
+	 * 
+	 * @param obj The object to send to the server (typically a HashMap)
 	 */
 	public void accept(Object obj) {
 		client.handleMessageFromClientUI(obj);
 	}
 
-	/******************** Unused method but has to implements.    ********************
-	 * This method overrides the method in the ChatIF interface. It displays a
-	 * message onto the screen.
+	/**
+	 * Displays a message to the console.
+	 * This method implements the ChatIF interface requirement.
+	 * Currently outputs to System.out with a prefix.
 	 *
-	 * @param message The string to be displayed.
+	 * @param message The message string to be displayed
 	 */
 	public void display(String message) {
 		System.out.println("> " + message);

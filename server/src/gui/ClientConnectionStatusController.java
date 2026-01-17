@@ -21,7 +21,12 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty; // Make sure this import is present
 
 /**
- * This class is showing us the GUI of the connections table
+ * Controller for displaying client connection status in a table view.
+ * Shows real-time information about connected clients including IP addresses,
+ * host names, and connection status. Updates the display when client connections change.
+ * 
+ * @author Dream Team
+ * @version 300.1.6
  */
 public class ClientConnectionStatusController {
 

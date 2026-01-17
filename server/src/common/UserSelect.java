@@ -1,6 +1,12 @@
 package common;
-/*
- * This enum is defining the action select of the user
+
+/**
+ * Enumeration of all available user action selections on the server side.
+ * Defines the menu options and operations that clients can request from the server.
+ * Used to route client messages to appropriate handlers in the EchoServer class.
+ * 
+ * @author Project Team
+ * @version 1.0
  */
 public enum UserSelect {
     UpdateOrderDate("Update order Date"),
@@ -39,23 +45,33 @@ public enum UserSelect {
     ReservationChartReport("Reservation Chart Report"),
     GetSubscriberTodayConfirmationCodes("Get Subscriber Today Confirmation Codes");
 
+    /** The human-readable display name for this action */
     private final String displayName;
 
-    /* 
-     * Constructor to set the display name for each enum
+    /**
+     * Constructor to set the display name for each enum value.
+     * 
+     * @param displayName The display name for this action
      */
     UserSelect(String displayName) {
         this.displayName = displayName;
     }
 
-    /* 
-     * Getter to retrieve the display name
+    /**
+     * Gets the display name for this action.
+     * 
+     * @return The display name string
      */
     public String getDisplayName() {
         return this.displayName;
     }
-    /*
-     * Getter to retrieve the enum itself if there is his name.
+    
+    /**
+     * Retrieves the UserSelect enum value by matching the enum name (not display name).
+     * Case-insensitive matching.
+     * 
+     * @param enumName The enum name string (e.g., "UpdateOrderDate")
+     * @return The matching UserSelect enum, or null if not found
      */
     public static UserSelect getSelectionFromEnumName(String enumName) {
         for (UserSelect action : UserSelect.values()) {

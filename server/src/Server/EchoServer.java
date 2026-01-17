@@ -1,5 +1,6 @@
 package Server;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -11,22 +12,52 @@ import javafx.stage.Stage;
 import ocsf.server.*;
 import entities.WaitingEntry;
 import entities.Payment;
-/*
- * This class is defining as a server
+
+/**
+ * Server class extending AbstractServer for handling client connections and messages.
+ * Processes various client requests including reservations, waiting list entries,
+ * payments, and database operations. Manages client connection status and routes
+ * messages to appropriate handlers.
+ * 
+ * @author Dream Team
+ * @version 300.1.6
  */
 public class EchoServer extends AbstractServer {
+	/** HashMap storing client connection status information (IP -> status string) */
 	public static HashMap<String, String> clientsstatusconnections = new HashMap<String, String>();
+	
+	/** HashMap storing active user sessions (userID -> ConnectionToClient) to prevent duplicate logins */
+	public static HashMap<String, ConnectionToClient> activeUserSessions = new HashMap<String, ConnectionToClient>();
+	
+	/** HashMap storing reverse mapping (ConnectionToClient -> userID) for cleanup on disconnect */
+	public static HashMap<ConnectionToClient, String> connectionToUserID = new HashMap<ConnectionToClient, String>();
+	
+	/** String for displaying popup messages about client connections */
 	public static String popUpString;
+	
+	/** Scene for displaying client connection status table */
 	public static Scene tableScene; 
+	
+	/** Stage for displaying client connection status table */
 	public static Stage tableStage; 
+	
+	/** Controller for the client connection status GUI */
 	public static ClientConnectionStatusController tableController;
 	
 
-	/** Constructs an instance of the echo server.
-	 * @param port - The port number to connect on.
+	/**
+	 * Constructs an instance of the EchoServer.
+	 * On initialization, all session tracking HashMaps are empty, which means
+	 * any previous sessions from before a server restart are cleared.
+	 * 
+	 * @param port The port number to listen for client connections on
 	 */
 	public EchoServer(int port) {
 		super(port);
+		// Clear any stale session data on server initialization/restart
+		// This ensures clean state after server crash or restart
+		activeUserSessions.clear();
+		connectionToUserID.clear();
 	}
 
 
@@ -296,9 +327,7 @@ public class EchoServer extends AbstractServer {
 			try {
 				String capacityStr = infoFromUser.get(menuChoiceString);
 				int capacity = Integer.parseInt(capacityStr);
-				System.out.println("Adding new table with capacity: " + capacity);
 				String result = mysqlConnection.insertTable(capacity);
-				System.out.println("Insert result: " + result);
 				this.sendToAllClients(result);
 			} catch (NumberFormatException e) {
 				System.err.println("Error: Invalid capacity format. Data: " + infoFromUser.get(menuChoiceString));
@@ -312,9 +341,7 @@ public class EchoServer extends AbstractServer {
 			break;
 		case GetNextTableId:
 			try {
-				System.out.println("Getting next table ID");
 				String nextId = mysqlConnection.getNextTableId();
-				System.out.println("Next table ID: " + nextId);
 				this.sendToAllClients(nextId);
 			} catch (Exception e) {
 				System.err.println("Exception in GetNextTableId case: " + e.getMessage());
@@ -325,9 +352,7 @@ public class EchoServer extends AbstractServer {
 			break;
 		case GetAllTableIds:
 			try {
-				System.out.println("Getting all table IDs");
 				String tableIds = mysqlConnection.getAllTableIds();
-				System.out.println("Table IDs: " + tableIds);
 				this.sendToAllClients(tableIds);
 			} catch (Exception e) {
 				System.err.println("Exception in GetAllTableIds case: " + e.getMessage());
@@ -339,9 +364,7 @@ public class EchoServer extends AbstractServer {
 		case GetTableData:
 			try {
 				String tableId = infoFromUser.get(menuChoiceString);
-				System.out.println("Getting data for table ID: " + tableId);
 				String capacity = mysqlConnection.getTableData(tableId);
-				System.out.println("Table capacity: " + capacity);
 				this.sendToAllClients(capacity);
 			} catch (Exception e) {
 				System.err.println("Exception in GetTableData case: " + e.getMessage());
@@ -377,9 +400,7 @@ public class EchoServer extends AbstractServer {
 			try {
 				String tableIdStr = infoFromUser.get(menuChoiceString);
 				int tableId = Integer.parseInt(tableIdStr);
-				System.out.println("Deleting table ID: " + tableId);
 				String result = mysqlConnection.deleteTable(tableId);
-				System.out.println("Delete result: " + result);
 				this.sendToAllClients(result);
 			} catch (Exception e) {
 				System.err.println("Exception in DeleteTable case: " + e.getMessage());
@@ -482,6 +503,15 @@ public class EchoServer extends AbstractServer {
 			//System.out.println("Client from IP: " + clientIp + ", HostName: " + clientPCName + ", Status: Disconnected");
 			clientsstatusconnections.remove(clientIp);
 			clientsstatusconnections.put(clientIp, offlineStatuString);
+			
+			// Remove user session if this connection was logged in
+			String userIdToRemove = connectionToUserID.get(client);
+			if (userIdToRemove != null) {
+				activeUserSessions.remove(userIdToRemove);
+				connectionToUserID.remove(client);
+				System.out.println("User session removed for userID: " + userIdToRemove);
+			}
+			
 			tableController.setconnection(popUpString);
 			this.sendToAllClients("Disconnected");
 			flag++;
@@ -490,6 +520,45 @@ public class EchoServer extends AbstractServer {
 			try {
 				String userId = infoFromUser.get(menuChoiceString);
 				String userType = mysqlConnection.validateUserID(userId);
+				
+				// Check if user is already logged in (skip for guest logins)
+				if (!userType.equals("Invalid") && !userType.equals("GUEST")) {
+					if (activeUserSessions.containsKey(userId)) {
+						// User is already logged in - check if connection is still active
+						ConnectionToClient existingConnection = activeUserSessions.get(userId);
+						if (existingConnection != null) {
+							// Check if the existing connection is still in the thread group
+							Thread[] clients = this.getClientConnections();
+							boolean connectionStillActive = false;
+							for (Thread thread : clients) {
+								if (thread == existingConnection) {
+									connectionStillActive = true;
+									break;
+								}
+							}
+							
+							if (connectionStillActive && existingConnection != client) {
+								// User is already logged in from another active connection
+								try {
+									client.sendToClient("AlreadyLoggedIn");
+								} catch (IOException e) {
+									System.err.println("Error sending AlreadyLoggedIn message: " + e.getMessage());
+								}
+								flag++;
+								break;
+							} else {
+								// Old connection is dead or is the same connection (re-login), clean it up
+								activeUserSessions.remove(userId);
+								connectionToUserID.remove(existingConnection);
+							}
+						}
+					}
+					
+					// Register new user session
+					activeUserSessions.put(userId, client);
+					connectionToUserID.put(client, userId);
+				}
+				
 				this.sendToAllClients(userType);
 			} catch (Exception e) {
 				System.err.println("Exception in ValidateUserID case: " + e.getMessage());
@@ -560,6 +629,67 @@ public class EchoServer extends AbstractServer {
 	 */
 	protected void serverStopped() {
 		System.out.println("Server has stopped listening for connections.");
+	}
+
+	/**
+	 * This method overrides the one in the superclass. Called when a client disconnects
+	 * (either gracefully or unexpectedly). Cleans up the user session to allow re-login.
+	 * 
+	 * @param client The connection that disconnected
+	 */
+	@Override
+	synchronized protected void clientDisconnected(ConnectionToClient client) {
+		cleanupClientSession(client, "disconnected");
+	}
+	
+	/**
+	 * This method overrides the one in the superclass. Called when an exception occurs
+	 * in a client connection thread (e.g., client crashes, network failure, socket closed unexpectedly).
+	 * Cleans up the user session to prevent "stuck" sessions.
+	 * 
+	 * @param client The connection that raised the exception
+	 * @param exception The exception that occurred
+	 */
+	@Override
+	synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
+		// Clean up session when client crashes or connection is lost unexpectedly
+		cleanupClientSession(client, "connection exception: " + exception.getMessage());
+		
+		// Log the exception for debugging
+		System.err.println("Client connection exception for " + 
+			(client.getInetAddress() != null ? client.getInetAddress().getHostAddress() : "unknown IP") +
+			": " + exception.getMessage());
+	}
+	
+	/**
+	 * Helper method to clean up client session and connection status.
+	 * Called when a client disconnects (gracefully or unexpectedly).
+	 * 
+	 * @param client The connection that disconnected
+	 * @param reason The reason for disconnection (for logging purposes)
+	 */
+	private void cleanupClientSession(ConnectionToClient client, String reason) {
+		// Remove user session if this connection was logged in
+		String userIdToRemove = connectionToUserID.get(client);
+		if (userIdToRemove != null) {
+			activeUserSessions.remove(userIdToRemove);
+			connectionToUserID.remove(client);
+			System.out.println("Client " + reason + " - User session removed for userID: " + userIdToRemove);
+		}
+		
+		// Update connection status display
+		if (client.getInetAddress() != null) {
+			String clientIp = client.getInetAddress().getHostAddress();
+			String clientPCName = client.getInetAddress().getHostName();
+			if (clientsstatusconnections.containsKey(clientIp)) {
+				String offlineStatuString = (clientIp + ", " + clientPCName + ", Disconnected");
+				clientsstatusconnections.put(clientIp, offlineStatuString);
+				if (tableController != null) {
+					popUpString = "Client from IP: " + clientIp + ", HostName: " + clientPCName + ", Status: Disconnected";
+					tableController.setconnection(popUpString);
+				}
+			}
+		}
 	}
 
 	

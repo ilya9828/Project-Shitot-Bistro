@@ -4,14 +4,30 @@ import javafx.application.Application;
 import javafx.stage.Stage;
 import gui.ServerPortFrameController;
 
-/*
- * This class is the server interface to the G21-prototype-server
+/**
+ * The main entry point for the server application.
+ * This class initializes and starts the JavaFX server user interface.
+ * Manages server startup, port configuration, and database connection.
+ * 
+ * @author Dream Team
+ * @version 300.1.5
  */
 public class ServerUI extends Application {
+	/** The port number the server is listening on */
 	public static String portServer;
+	
+	/** Flag indicating whether the server is currently running */
 	public static boolean Running = false;
+	
+	/** Error message string for displaying server startup errors */
 	public static String errMsg = "";
 
+	/**
+	 * Main method to launch the JavaFX server application.
+	 * 
+	 * @param args Command line arguments (not used)
+	 * @throws Exception if the application fails to start
+	 */
 	public static void main(String args[]) throws Exception {
 		try {
 			launch(args);
@@ -22,6 +38,13 @@ public class ServerUI extends Application {
 		}
 	}
 
+	/**
+	 * Initializes and starts the server GUI.
+	 * Loads the server port configuration frame to allow the user to specify the port.
+	 * 
+	 * @param primaryStage The primary stage for the application
+	 * @throws Exception if initializing the server UI fails
+	 */
 	@Override
 	public void start(Stage primaryStage) throws Exception {
 		try {
@@ -34,6 +57,14 @@ public class ServerUI extends Application {
 		}
 	}
 
+	/**
+	 * Starts the server with the specified port number.
+	 * Initializes the EchoServer, establishes database connection, and begins listening for clients.
+	 * Generates monthly reports if needed.
+	 * 
+	 * @param p The port number as a string to start the server on
+	 * @throws Exception if the server fails to start (invalid port, connection error, etc.)
+	 */
 	public static void runServer(String p) throws Exception {
 		int port = 0; // Port to listen on
 		String localerr = "";

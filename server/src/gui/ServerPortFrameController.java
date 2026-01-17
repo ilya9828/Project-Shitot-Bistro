@@ -19,8 +19,13 @@ import java.net.InetAddress;
 import Server.EchoServer;
 import Server.ServerUI;
 
-/*
- * This is the main frame that ask the user to enter port to listen it to clients
+/**
+ * Controller for the server port configuration window.
+ * Handles user input for server port and local IP address,
+ * validates the input, and starts the server with the specified configuration.
+ * 
+ * @author Project Team
+ * @version 1.0
  */
 public class ServerPortFrameController  {
 	
@@ -42,8 +47,10 @@ public class ServerPortFrameController  {
 	private TextField localiptxt;
 	
 	
-	/*
-	 * this method is getting the port from the user
+	/**
+	 * Retrieves the port number entered by the user.
+	 * 
+	 * @return The port number as a string from the port text field
 	 */
 	private String getport() {
 		return portxt.getText();			

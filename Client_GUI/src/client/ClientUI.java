@@ -9,18 +9,35 @@ import javafx.stage.Stage;
 import java.util.HashMap;
 
 
-/**This class is starting the clientUI that we see
+/**
+ * The main entry point for the client application.
+ * This class initializes and starts the JavaFX client user interface.
+ * It manages the connection setup window and handles client-server connections.
  * 
+ * @author Dream Team
+ * @version 300.1.5
  */
 public class ClientUI extends Application {
+	/** The single instance of the ClientController managing client-server communication */
 	public static ClientController chat; // only one instance
 
+	/**
+	 * Main method to launch the JavaFX application.
+	 * 
+	 * @param args Command line arguments (not used)
+	 * @throws Exception if the application fails to start
+	 */
 	public static void main(String args[]) throws Exception {
 		launch(args);
 	} // end main
 
 	/**
-	 *Starting the GUI of the ClientUI  
+	 * Initializes and starts the GUI for the ClientUI.
+	 * Loads the connection setup FXML scene and sets up the primary stage.
+	 * Also sets up a close request handler to properly disconnect from the server.
+	 * 
+	 * @param primaryStage The primary stage for the application
+	 * @throws Exception if loading the FXML file or initializing the scene fails
 	 */
 	@Override
 	public void start(Stage primaryStage) throws Exception {
@@ -58,10 +75,13 @@ public class ClientUI extends Application {
 		primaryStage.show();
 	}
 
-	/**This method is setting the first connection to the server as one instance
-	 * @param serverip - server ip that the user wants to connect to
-	 * @param port		- port that the user want to communicate with the server 
-	 * @return true if new connection was up right now and succeed.
+	/**
+	 * Establishes the initial connection to the server.
+	 * Creates a new ClientController instance if one doesn't already exist.
+	 * 
+	 * @param serverip The IP address of the server to connect to
+	 * @param port The port number for server communication
+	 * @return true if a new connection was successfully established, false if already connected
 	 */
 	public static boolean StartConnectionWithServer(String serverip, String port) {
 		if (chat == null) {

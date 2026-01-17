@@ -134,7 +134,12 @@ public class UserIdentificationController {
 
                     statusLabel.setText("");
                     
-                    if ("Subscriber".equals(response)) {
+                    if ("AlreadyLoggedIn".equals(response)) {
+                        // User is already logged in from another connection
+                        showError("This account is already logged in from another location. Please disconnect the other session first.");
+                        loginButton.setDisable(false);
+                        continueAsGuestButton.setDisable(false);
+                    } else if ("Subscriber".equals(response)) {
                         // Login successful - navigate to Subscriber Menu
                         UserSessionHelper.setSubscriber(userId.trim());
                         navigateToSubscriberMenu(userId.trim());

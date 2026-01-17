@@ -10,7 +10,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -18,16 +20,29 @@ import entities.Reservations;
 import entities.WaitingEntry;
 import entities.Payment;
 
-/*
- * This class is connect to mySQL DB for G3-prototype server. 
+/**
+ * Database connection and operation class for the restaurant management system.
+ * Handles all MySQL database interactions including reservations, waiting lists,
+ * payments, subscribers, tables, and reporting. Manages database connection,
+ * executes SQL queries, and processes business logic for the server.
+ * 
+ * @author Dream Team
+ * @version 300.1.6
  */
 public class mysqlConnection {
 
+	/** Static connection to the MySQL database */
 	public static Connection conn;
+	
+	/** Scheduled executor service for monthly report generation */
 	private static ScheduledExecutorService reportScheduler = null;
 
-	/*
-	 * This method is connecting to out G3-prototype server
+	/**
+	 * Connects to the MySQL database and initializes background processing threads.
+	 * Starts scheduled tasks for waiting list processing, reminders, expired reservation
+	 * cancellation, and monthly report generation.
+	 * 
+	 * @return A status string indicating connection success or failure with error details
 	 */
 	public static String connectToDB() {
 		String ret ="";
@@ -870,7 +885,9 @@ public class mysqlConnection {
 	}
 
 	/**
-	 * Update table capacity
+	 * Update table capacity.
+	 * After updating, checks 1 month ahead for overcapacity in 2-hour time slots.
+	 * If overcapacity is found, cancels the order with the most people in that time slot.
 	 * @param tableId - table ID to update
 	 * @param capacity - new capacity value
 	 * @return "TableUpdated" if successful, "Error" on failure
@@ -882,6 +899,7 @@ public class mysqlConnection {
 		}
 
 		try {
+			// Update the table capacity
 			String sql = "UPDATE tables SET capacity = ? WHERE tableID = ?";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -890,6 +908,8 @@ public class mysqlConnection {
 				
 				int rowsAffected = pstmt.executeUpdate();
 				if (rowsAffected > 0) {
+					// Table updated successfully - now check capacity for 1 month ahead
+					checkAndCancelOrdersAfterTableChange("Table Update");
 					return "TableUpdated";
 				} else {
 					return "Error: Table not found or no changes made";
@@ -898,11 +918,18 @@ public class mysqlConnection {
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "Error: " + e.getMessage();
 		}
 	}
+	
 
 	/**
-	 * Delete a table from the database
+	 * Delete a table from the database.
+	 * Before deletion, saves the table's capacity.
+	 * After deletion, checks 1 month ahead for overcapacity in 2-hour time slots.
+	 * If overcapacity is found, cancels the order with the most people in that time slot.
 	 * @param tableId - table ID to delete
 	 * @return "TableDeleted" if successful, "Error" on failure
 	 */
@@ -913,6 +940,18 @@ public class mysqlConnection {
 		}
 
 		try {
+			// First, check if table exists before deletion
+			String checkTableSql = "SELECT tableID FROM tables WHERE tableID = ?";
+			try (PreparedStatement checkStmt = conn.prepareStatement(checkTableSql)) {
+				checkStmt.setInt(1, tableId);
+				try (ResultSet rs = checkStmt.executeQuery()) {
+					if (!rs.next()) {
+						return "Error: Table not found";
+					}
+				}
+			}
+			
+			// Delete the table
 			String sql = "DELETE FROM tables WHERE tableID = ?";
 			
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -920,6 +959,8 @@ public class mysqlConnection {
 				
 				int rowsAffected = pstmt.executeUpdate();
 				if (rowsAffected > 0) {
+					// Table deleted successfully - now check capacity for 1 month ahead
+					checkAndCancelOrdersAfterTableChange("Table Removal");
 					return "TableDeleted";
 				} else {
 					return "Error: Table not found";
@@ -928,6 +969,354 @@ public class mysqlConnection {
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return "Error: " + e.getMessage();
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "Error: " + e.getMessage();
+		}
+	}
+	
+	/**
+	 * Helper class to hold order information for capacity checking
+	 */
+	private static class OrderInfo {
+		String confirmationCode;
+		String name;
+		Timestamp orderTime;
+		int numberOfGuests;
+		String email;
+		String phone;
+		
+		OrderInfo(String confirmationCode, String name, Timestamp orderTime, int numberOfGuests, String email, String phone) {
+			this.confirmationCode = confirmationCode;
+			this.name = name;
+			this.orderTime = orderTime;
+			this.numberOfGuests = numberOfGuests;
+			this.email = email;
+			this.phone = phone;
+		}
+	}
+	
+	/**
+	 * Generic method to check orders 1 month ahead after table change (deletion or update).
+	 * Groups orders by 2-hour time slots and cancels the largest order (most people) 
+	 * in each slot where capacity is exceeded.
+	 * @param changeType - Type of change: "Table Removal" or "Table Update" (used for logging)
+	 */
+	private static void checkAndCancelOrdersAfterTableChange(String changeType) {
+		try {
+			// Get current number of tables after deletion
+			int currentTableCount = 0;
+			try (PreparedStatement countStmt = conn.prepareStatement("SELECT COUNT(*) FROM tables")) {
+				try (ResultSet rs = countStmt.executeQuery()) {
+					if (rs.next()) {
+						currentTableCount = rs.getInt(1);
+					}
+				}
+			}
+			
+			if (currentTableCount == 0) {
+				// No tables left - cancel all future orders
+				cancelAllFutureOrdersAfterTableRemoval();
+				return;
+			}
+			
+			// Get all future orders (1 month ahead) that are not cancelled or paid
+			Timestamp now = new Timestamp(System.currentTimeMillis());
+			Timestamp oneMonthFromNow = new Timestamp(now.getTime() + 30L * 24L * 60L * 60L * 1000L); // 30 days
+			
+			String getFutureOrdersSql =
+				"SELECT confirmation_code, name, order_time_date, number_of_guests, email, phone " +
+				"FROM orders " +
+				"WHERE order_time_date >= ? " +
+				"AND order_time_date <= ? " +
+				"AND status IN ('PENDING') " +
+				"ORDER BY order_time_date ASC";
+			
+			List<OrderInfo> allFutureOrders = new ArrayList<>();
+			try (PreparedStatement ordersStmt = conn.prepareStatement(getFutureOrdersSql)) {
+				ordersStmt.setTimestamp(1, now);
+				ordersStmt.setTimestamp(2, oneMonthFromNow);
+				try (ResultSet rs = ordersStmt.executeQuery()) {
+					while (rs.next()) {
+						OrderInfo order = new OrderInfo(
+							rs.getString("confirmation_code"),
+							rs.getString("name"),
+							rs.getTimestamp("order_time_date"),
+							rs.getInt("number_of_guests"),
+							rs.getString("email"),
+							rs.getString("phone")
+						);
+						allFutureOrders.add(order);
+					}
+				}
+			}
+			
+			if (allFutureOrders.isEmpty()) {
+				return; // No future orders to check
+			}
+			
+			// Track which orders have been cancelled to avoid processing them again
+			Set<String> cancelledCodes = new HashSet<>();
+			long twoHoursMillis = 120L * 60L * 1000L; // 2 hours in milliseconds
+			
+			// Process each order and check for overlapping reservations in 2-hour windows
+			for (OrderInfo order : allFutureOrders) {
+				// Skip if already cancelled
+				if (cancelledCodes.contains(order.confirmationCode)) {
+					continue;
+				}
+				
+				// Get all overlapping reservations in the 2-hour window starting at this order's time
+				Timestamp orderStart = order.orderTime;
+				Timestamp orderEnd = new Timestamp(orderStart.getTime() + twoHoursMillis);
+				
+				// Find all orders that overlap with this 2-hour window
+				// An order overlaps if: it starts before this window ends AND it ends after this window starts
+				String getOverlappingSql =
+					"SELECT confirmation_code, name, order_time_date, number_of_guests, email, phone " +
+					"FROM orders o " +
+					"WHERE o.order_time_date < ? " +
+					"AND DATE_ADD(o.order_time_date, INTERVAL 120 MINUTE) > ? " +
+					"AND o.status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid') " +
+					"ORDER BY number_of_guests DESC"; // Sort by largest first to find the biggest order
+				
+				List<OrderInfo> overlappingOrders = new ArrayList<>();
+				try (PreparedStatement overlapStmt = conn.prepareStatement(getOverlappingSql)) {
+					overlapStmt.setTimestamp(1, orderEnd);
+					overlapStmt.setTimestamp(2, orderStart);
+					try (ResultSet rs = overlapStmt.executeQuery()) {
+						while (rs.next()) {
+							String confCode = rs.getString("confirmation_code");
+							
+							// Skip if already cancelled
+							if (cancelledCodes.contains(confCode)) {
+								continue;
+							}
+							
+							OrderInfo overlappingOrder = new OrderInfo(
+								confCode,
+								rs.getString("name"),
+								rs.getTimestamp("order_time_date"),
+								rs.getInt("number_of_guests"),
+								rs.getString("email"),
+								rs.getString("phone")
+							);
+							overlappingOrders.add(overlappingOrder);
+						}
+					}
+				}
+				
+				// Check if orders can fit with available tables using greedy algorithm
+				// Get all table capacities
+				List<Integer> tableCapacities = new ArrayList<>();
+				try (PreparedStatement tablesStmt = conn.prepareStatement(
+						"SELECT capacity FROM tables ORDER BY capacity ASC")) {
+					try (ResultSet rs = tablesStmt.executeQuery()) {
+						while (rs.next()) {
+							tableCapacities.add(rs.getInt("capacity"));
+						}
+					}
+				}
+				
+				// Check if all overlapping orders can fit using greedy algorithm
+				// Sort orders by number_of_guests (descending) to assign larger groups first
+				List<Integer> guestsList = new ArrayList<>();
+				for (OrderInfo ord : overlappingOrders) {
+					guestsList.add(ord.numberOfGuests);
+				}
+				guestsList.sort((a, b) -> Integer.compare(b, a)); // Sort descending
+				
+				// Track which tables are assigned
+				boolean[] tablesAssigned = new boolean[tableCapacities.size()];
+				boolean hasCapacity = true;
+				
+				// Try to assign each order
+				for (int guests : guestsList) {
+					boolean assigned = false;
+					// Find smallest unassigned table that can accommodate this order
+					for (int i = 0; i < tableCapacities.size(); i++) {
+						if (!tablesAssigned[i] && tableCapacities.get(i) >= guests) {
+							tablesAssigned[i] = true;
+							assigned = true;
+							break;
+						}
+					}
+					if (!assigned) {
+						hasCapacity = false; // Cannot assign this order
+						break;
+					}
+				}
+				
+				// If no capacity, cancel largest orders until capacity is met
+				while (!hasCapacity && !overlappingOrders.isEmpty()) {
+					// Remove already cancelled orders from the list
+					overlappingOrders.removeIf(o -> cancelledCodes.contains(o.confirmationCode));
+					
+					if (overlappingOrders.isEmpty()) {
+						break;
+					}
+					
+					// Overcapacity detected - cancel the order with the most people
+					// Orders are already sorted by number_of_guests DESC, so first one is largest
+					OrderInfo orderToCancel = overlappingOrders.get(0);
+					
+					// Cancel the order
+					String cancelSql = "UPDATE orders SET status = 'Cancelled by resturant' WHERE confirmation_code = ?";
+					try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
+						cancelStmt.setString(1, orderToCancel.confirmationCode);
+						cancelStmt.executeUpdate();
+					}
+					
+					// Mark as cancelled
+					cancelledCodes.add(orderToCancel.confirmationCode);
+					
+					// Format order date for message
+					java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
+					String orderDateStr = dateFormat.format(orderToCancel.orderTime);
+					
+					// Create cancellation message
+					String clientName = orderToCancel.name != null && !orderToCancel.name.trim().isEmpty() 
+						? orderToCancel.name : "Guest";
+					
+					String message = String.format(
+						"Dear %s, we are sorry but we will have to cancel your reservation to our restaurant on %s. " +
+						"We apologize for the inconvenience.",
+						clientName, orderDateStr
+					);
+					
+					// Print SMS/Email notification (as per system convention)
+					String logPrefix = "[" + changeType + " Cancellation]";
+					if (orderToCancel.phone != null && !orderToCancel.phone.trim().isEmpty()) {
+						System.out.println(logPrefix + " SMS sent to customer: " + clientName + 
+							" (Phone: " + orderToCancel.phone + ", Confirmation: " + orderToCancel.confirmationCode + 
+							") - " + message);
+					}
+					
+					if (orderToCancel.email != null && !orderToCancel.email.trim().isEmpty()) {
+						System.out.println(logPrefix + " Email sent to customer: " + clientName + 
+							" (Email: " + orderToCancel.email + ", Confirmation: " + orderToCancel.confirmationCode + 
+							") - " + message);
+					}
+					
+					// Also print to console if no contact info
+					if ((orderToCancel.phone == null || orderToCancel.phone.trim().isEmpty()) && 
+					    (orderToCancel.email == null || orderToCancel.email.trim().isEmpty())) {
+						System.out.println(logPrefix + " Order cancelled for: " + clientName + 
+							" (Confirmation: " + orderToCancel.confirmationCode + ", Date: " + orderDateStr + 
+							") - " + message);
+					}
+					
+					// Remove the cancelled order from the list
+					overlappingOrders.remove(0);
+					
+					// Recheck capacity with remaining orders
+					guestsList.clear();
+					for (OrderInfo ord : overlappingOrders) {
+						guestsList.add(ord.numberOfGuests);
+					}
+					guestsList.sort((a, b) -> Integer.compare(b, a)); // Sort descending
+					
+					// Reset table assignments
+					tablesAssigned = new boolean[tableCapacities.size()];
+					hasCapacity = true;
+					
+					// Try to assign each remaining order
+					for (int guests : guestsList) {
+						boolean assigned = false;
+						for (int i = 0; i < tableCapacities.size(); i++) {
+							if (!tablesAssigned[i] && tableCapacities.get(i) >= guests) {
+								tablesAssigned[i] = true;
+								assigned = true;
+								break;
+							}
+						}
+						if (!assigned) {
+							hasCapacity = false;
+							break;
+						}
+					}
+				}
+			}
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.err.println("Error checking capacity after table change: " + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.err.println("Unexpected error in checkAndCancelOrdersAfterTableChange: " + e.getMessage());
+		}
+	}
+	
+	/**
+	 * Cancels all future orders when no tables remain after deletion.
+	 * Prints cancellation messages for each cancelled order.
+	 */
+	private static void cancelAllFutureOrdersAfterTableRemoval() {
+		try {
+			Timestamp now = new Timestamp(System.currentTimeMillis());
+			Timestamp oneMonthFromNow = new Timestamp(now.getTime() + 30L * 24L * 60L * 60L * 1000L);
+			
+			String getFutureOrdersSql =
+				"SELECT confirmation_code, name, order_time_date, email, phone " +
+				"FROM orders " +
+				"WHERE order_time_date >= ? " +
+				"AND order_time_date <= ? " +
+				"AND status NOT IN ('cancelled', 'Cancelled by user', 'Cancelled by resturant', 'paid')";
+			
+			try (PreparedStatement ordersStmt = conn.prepareStatement(getFutureOrdersSql)) {
+				ordersStmt.setTimestamp(1, now);
+				ordersStmt.setTimestamp(2, oneMonthFromNow);
+				try (ResultSet rs = ordersStmt.executeQuery()) {
+					while (rs.next()) {
+						String confCode = rs.getString("confirmation_code");
+						String name = rs.getString("name");
+						Timestamp orderTime = rs.getTimestamp("order_time_date");
+						String email = rs.getString("email");
+						String phone = rs.getString("phone");
+						
+						// Cancel the order
+						String cancelSql = "UPDATE orders SET status = 'Cancelled by resturant' WHERE confirmation_code = ?";
+						try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
+							cancelStmt.setString(1, confCode);
+							cancelStmt.executeUpdate();
+						}
+						
+						// Format order date for message
+						java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
+						String orderDateStr = dateFormat.format(orderTime);
+						
+						// Create cancellation message
+						String clientName = name != null && !name.trim().isEmpty() ? name : "Guest";
+						
+						String message = String.format(
+							"Dear %s, we are sorry but we will have to cancel your reservation to our restaurant on %s. " +
+							"We apologize for the inconvenience.",
+							clientName, orderDateStr
+						);
+						
+						// Print SMS/Email notification
+						if (phone != null && !phone.trim().isEmpty()) {
+							System.out.println("[Table Removal Cancellation] SMS sent to customer: " + clientName + 
+								" (Phone: " + phone + ", Confirmation: " + confCode + ") - " + message);
+						}
+						
+						if (email != null && !email.trim().isEmpty()) {
+							System.out.println("[Table Removal Cancellation] Email sent to customer: " + clientName + 
+								" (Email: " + email + ", Confirmation: " + confCode + ") - " + message);
+						}
+						
+						// Also print to console if no contact info
+						if ((phone == null || phone.trim().isEmpty()) && 
+						    (email == null || email.trim().isEmpty())) {
+							System.out.println("[Table Removal Cancellation] Order cancelled for: " + clientName + 
+								" (Confirmation: " + confCode + ", Date: " + orderDateStr + ") - " + message);
+						}
+					}
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.err.println("Error cancelling all future orders: " + e.getMessage());
 		}
 	}
 
@@ -1806,10 +2195,12 @@ public class mysqlConnection {
 	/**
 	 * Cancel reservations that are more than 15 minutes past their reservation time
 	 * and have not been checked in (no visit record exists).
+	 * After cancelling orders, also releases the tables by setting confirmationCode to NULL.
 	 * This method is called periodically by a background thread.
 	 */
 	private static void cancelExpiredReservations() {
 		try {
+			// Update orders status to 'Cancelled by resturant'
 			String cancelSql = 
 				"UPDATE orders o " +
 				"SET o.status = 'Cancelled by resturant' " +
@@ -1818,6 +2209,18 @@ public class mysqlConnection {
 			
 			try (PreparedStatement cancelStmt = conn.prepareStatement(cancelSql)) {
 				cancelStmt.executeUpdate();
+			}
+			
+			// After updating orders, set confirmationCode to NULL in tables for cancelled orders
+			String updateTablesSql = 
+				"UPDATE tables t " +
+				"INNER JOIN orders o ON t.confirmationCode = o.confirmation_code " +
+				"SET t.confirmationCode = NULL " +
+				"WHERE o.order_time_date <= DATE_SUB(NOW(), INTERVAL 15 MINUTE) " +
+				"AND o.status = 'Cancelled by resturant'";
+			
+			try (PreparedStatement updateTablesStmt = conn.prepareStatement(updateTablesSql)) {
+				updateTablesStmt.executeUpdate();
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -2378,15 +2781,15 @@ public class mysqlConnection {
 				return;
 			}
 			
-			// Query visit table to find customers sitting for exactly 2 hours (within 5 minute window)
-			// This ensures bill is sent only once per customer (within the 5 minute window)
+			// Query visit table to find customers sitting for exactly 2 hours (within 1 minute window)
+			// This ensures bill is sent only once per customer (within the 1 minute window)
 			String sql = "SELECT v.confirmation_code, v.tableID, v.startTime, o.name AS customerName, " +
 			             "o.email, o.phone, o.number_of_guests " +
 			             "FROM visit v " +
 			             "INNER JOIN tables t ON v.confirmation_code = t.confirmationCode " +
 			             "LEFT JOIN orders o ON v.confirmation_code = o.confirmation_code " +
 			             "WHERE v.endTime IS NULL " +
-			             "AND v.startTime >= DATE_SUB(NOW(), INTERVAL 2 HOUR + INTERVAL 5 MINUTE) " +
+			             "AND v.startTime >= DATE_SUB(DATE_SUB(NOW(), INTERVAL 2 HOUR), INTERVAL 1 MINUTE) " +
 			             "AND v.startTime <= DATE_SUB(NOW(), INTERVAL 2 HOUR) " +
 			             "ORDER BY v.startTime ASC";
 			
@@ -2405,21 +2808,14 @@ public class mysqlConnection {
 						customerName = "Unknown";
 					}
 					
-					// Bill amount
-					double billAmount = 250.0;
-					
-					// Prepare detailed bill message
-					String billDetails = String.format(
-						"Restaurant Bill\n" +
-						"===============\n" +
+					// Prepare bill message without amount
+					String billMessage = String.format(
+						"Thank you for your visit!\n" +
 						"Confirmation Code: %s\n" +
 						"Table Number: %d\n" +
 						"Number of Guests: %d\n" +
-						"\nBill Details:\n" +
-						"-------------\n" +
-						"Total Amount: %.2f NIS\n" +
-						"\nThank you for your visit!",
-						confirmationCode, tableID, numberOfGuests, billAmount
+						"\nClick here to pay ur bill",
+						confirmationCode, tableID, numberOfGuests
 					);
 					
 					// Send SMS if phone available
@@ -2427,9 +2823,8 @@ public class mysqlConnection {
 						System.out.println("[Long Sitting Check] Bill SMS sent to customer: " + customerName + 
 						                   " (Phone: " + phone + 
 						                   ", Confirmation: " + confirmationCode + 
-						                   ", Table: " + tableID + 
-						                   ", Amount: " + billAmount + " NIS)");
-						System.out.println("[Long Sitting Check] SMS Bill Details:\n" + billDetails);
+						                   ", Table: " + tableID + ")");
+						System.out.println("[Long Sitting Check] SMS Message:\n" + billMessage);
 					}
 					
 					// Send Email if email available
@@ -2437,9 +2832,8 @@ public class mysqlConnection {
 						System.out.println("[Long Sitting Check] Bill Email sent to customer: " + customerName + 
 						                   " (Email: " + email + 
 						                   ", Confirmation: " + confirmationCode + 
-						                   ", Table: " + tableID + 
-						                   ", Amount: " + billAmount + " NIS)");
-						System.out.println("[Long Sitting Check] Email Bill Details:\n" + billDetails);
+						                   ", Table: " + tableID + ")");
+						System.out.println("[Long Sitting Check] Email Message:\n" + billMessage);
 					}
 				}
 				
@@ -2454,13 +2848,13 @@ public class mysqlConnection {
 	
 	/**
 	 * Start a background thread that periodically checks for customers who have been sitting for 2+ hours.
-	 * The thread runs every 5 minutes to check for long-sitting customers.
+	 * The thread runs every 1 minute to check for long-sitting customers.
 	 */
 	private static void startLongSittingCheckThread() {
 		Thread longSittingThread = new Thread(() -> {
 			while (true) {
 				try {
-					Thread.sleep(300000); // 5 minutes (300000 milliseconds)
+					Thread.sleep(60000); // 1 minute (60000 milliseconds)
 					if (conn != null && !conn.isClosed()) {
 						checkLongSittingCustomers();
 					}

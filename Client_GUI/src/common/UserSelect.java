@@ -1,7 +1,12 @@
 package common;
 
-/** This enum is as menu to user select options
+/**
+ * Enumeration of all available user menu options/actions.
+ * Provides a centralized way to identify different operations
+ * that can be performed by clients on the server.
  * 
+ * @author Dream Team 
+ * @version 300.1.6
  */
 public enum UserSelect {
     UpdateOrderDate("Update Order Date"),
@@ -26,14 +31,23 @@ public enum UserSelect {
     ReservationChartReport("Reservation Chart Report"),
     GetSubscriberTodayConfirmationCodes("Get Subscriber Today Confirmation Codes");
 
+    /** The human-readable display name for this menu option */
     private final String displayName;
 
-    // Constructor to set the display name for each enum
+    /**
+     * Constructor to set the display name for each enum value.
+     * 
+     * @param displayName The display name for this menu option
+     */
     UserSelect(String displayName) {
         this.displayName = displayName;
     }
 
-    // Getter to retrieve the display name
+    /**
+     * Gets the display name for this menu option.
+     * 
+     * @return The display name string
+     */
     public String getDisplayName() {
         return this.displayName;
     }
