@@ -70,4 +70,4 @@ Start components in this order:
 
 ## Author
 
-Developed by **Ido Peretz** as part of the Software Engineering curriculum at Braude College.
+Developed by **Ilya Simanovski, Ido Peretz, Adir Avitan, Bar Amara** as part of the Software Engineering curriculum at Braude College.
