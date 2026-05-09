@@ -1,52 +1,73 @@
 # Project-Shitot-Bistro
 
-A robust bistro management system designed with a professional client-server architecture. This project demonstrates advanced software engineering principles, networking protocols, and a modular approach to full-stack Java development.
+A comprehensive **JavaFX client-server** application designed to manage the end-to-end workflow of a modern bistro.  
+The system streamlines operations including reservations, waiting lists, customer check-ins, payments, and managerial reporting.
 
-## Overview
-**Project-Shitot-Bistro** utilizes the **Object Client-Server Framework (OCSF)** to facilitate real-time communication between the client-side interface and the backend server. The system is designed to handle multiple concurrent users, ensuring data integrity and high performance in a restaurant environment.
+## Project Structure
 
-## Repository Structure
-The project is organized into modular components to ensure a clean separation of concerns, as seen in the repository files (e.g., **image_8fc5f8.png**):
+The repository is organized as an Eclipse multi-project workspace to keep a clear separation of concerns:
 
-*   **`Client_GUI`**: The front-end application layer, responsible for user interactions and visual data representation.
-*   **`server`**: The central logic hub that processes requests, manages database interactions, and maintains system state.
-*   **`Common`**: A shared library containing Data Transfer Objects (DTOs) and utility classes used by both the client and server to ensure synchronized communication.
-*   **`OCSF`**: The core networking framework implementation.
-*   **`G3_Assignment`**: Project deliverables and modular components developed throughout the project's milestones.
+- **`Client_GUI`**: JavaFX desktop client, FXML views, and UI controllers.
+- **`server`**: Backend logic, database connectivity, and request handling.
+- **`Common`**: Shared entities, DTOs, and models used by both client and server.
+- **`OCSF`**: Object Client-Server Framework used for asynchronous socket communication.
+- **`G3_Assignment2`**: Project documentation and assignment deliverables.
 
 ## Tech Stack
-*   **Language:** Java
-*   **Architecture:** Distributed Client-Server
-*   **Frameworks:** OCSF (Object Client-Server Framework), JavaFX/Swing for GUI
-*   **Database:** Integrated SQL-based storage (e.g., MySQL)
-*   **Version Control:** Git
 
-## Installation & Setup
-1.  **Clone the Repository:**
-    ```bash
-    git clone [https://github.com/ilya9828/Project-Shitot-Bistro.git]
+- **Language:** Java (JavaSE-23)
+- **UI Framework:** JavaFX
+- **Database:** MySQL (persistent storage)
+- **Networking:** OCSF-style socket communication
+- **IDE:** Eclipse (includes `.project` and `.classpath` configuration files)
 
-    Server Initialization:
+## Prerequisites
 
-Navigate to the /server directory.
+Make sure the following are installed before setup:
 
-Update the database configuration file with your local credentials.
+- **JDK 23** or newer
+- **JavaFX SDK** (configured in your local environment)
+- **MySQL Server** (local instance on `localhost:3306`)
+- **MySQL Connector/J** (`9.5.0` recommended)
 
-Run the main Server class to start listening for incoming client requests.
+## Setup and Installation
 
-Client Launch:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/ilya9828/Project-Shitot-Bistro.git
+   ```
+2. **Import projects into Eclipse**
+   - `Client_GUI`
+   - `server`
+   - `Common`
+   - `OCSF`
+3. **Configure environment**
+   - Fix JavaFX library paths in `.classpath` if needed.
+   - Create a MySQL database named `bistrodb`.
+   - Update DB credentials in `server/src/Server/mysqlConnection.java`.
+4. **Security note**
+   - Avoid committing credentials to GitHub.
+   - Prefer environment variables or external config files.
 
-Navigate to the /Client_GUI directory.
+## Running the Application
 
-Run the main application class.
+Start components in this order:
 
-Enter the Server IP address and the designated port to establish a connection.
+1. **Launch server**
+   - Run `server/src/Server/ServerUI.java`
+   - Set the port and start listening
+2. **Launch client**
+   - Run `Client_GUI/src/client/ClientUI.java`
+   - Enter the server IP and port in the connection screen
 
-Key Features
-Concurrency: Efficiently manages multiple simultaneous client connections.
+## Main Features
 
-Real-time Updates: Immediate synchronization between the server and all active clients.
+- **Reservation Management:** Create, update, and track customer bookings.
+- **Waiting List Logic:** Handle walk-ins when the bistro is fully booked.
+- **Role-Based Flow:** Dedicated menus and permissions for guests, staff, and managers.
+- **Advanced Reporting:** Visual charts for delays and reservation trends.
+- **Integrated Billing:** Payment handling and order history views.
 
-Modular Architecture: Clean, maintainable code following industry-standard design patterns.
+## Author
 
-Data Integrity: Robust handling of bistro operations, from order management to status tracking.
+Developed by **Ido Peretz** as part of the Software Engineering curriculum at Braude College.
